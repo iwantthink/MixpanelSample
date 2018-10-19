@@ -574,6 +574,7 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
             }
 
             final String url = MPConfig.getInstance(mContext).getEditorUrl() + mToken;
+//            final String url = MPConfig.getInstance(mContext).getEditorUrl();
             try {
                 //创建一个sslSocket
                 final Socket sslSocket = socketFactory.createSocket();

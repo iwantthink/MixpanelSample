@@ -13,7 +13,8 @@ import com.mixpanel.android.mpmetrics.MixpanelAPI;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String MIXPANEL_TOKEN = "efecc1169050774fbff2ce156010d8c1";
+    public static final String MIXPANEL_TOKEN = "3b7d8a554de588c7358ef9552eaeb852";
+//    public static final String MIXPANEL_TOKEN = "efecc1169050774fbff2ce156010d8c1";
 
     Context mContext;
 

@@ -432,6 +432,7 @@ public class MPConfig {
 
     /**
      * 是否忽略不可见的控件
+     *
      * @return
      */
     public boolean getIgnoreInvisibleViewsEditor() {
@@ -590,6 +591,10 @@ public class MPConfig {
     private final String mNotificationChannelName;
 
     // Mutable, with synchronized accessor and mutator
+    /**
+     * SSLSocketFactory用来创建一个SSLSocket
+     * SSLSocket 即 HTTPS 协议使用的 Socket
+     */
     private SSLSocketFactory mSSLSocketFactory;
     private OfflineMode mOfflineMode;
 
