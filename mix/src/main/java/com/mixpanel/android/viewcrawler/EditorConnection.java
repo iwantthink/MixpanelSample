@@ -83,7 +83,7 @@ import java.nio.ByteBuffer;
          */
         public EditorClient(URI uri, int connectTimeout, Socket sslSocket) throws InterruptedException {
             super(uri, new Draft_17(), null, connectTimeout);
-            setSocket(sslSocket);
+//            setSocket(sslSocket);
         }
 
         @Override
