@@ -17,17 +17,18 @@ import java.util.Map;
 
 /**
  * Handles translating events detected by ViewVisitors into events sent to Mixpanel
- *
+ * <p>
  * - Builds properties by interrogating view subtrees
- *
+ * <p>
  * - Possibly debounces events using the Handler given at construction
- *
+ * <p>
  * - Calls MixpanelAPI.track
  */
 /* package */ class DynamicEventTracker implements ViewVisitor.OnEventListener {
 
     public DynamicEventTracker(MixpanelAPI mixpanel, Handler homeHandler) {
         mMixpanel = mixpanel;
+        // 去抖动事件
         mDebouncedEvents = new HashMap<Signature, UnsentEvent>();
         mTask = new SendDebouncedTask();
         mHandler = homeHandler;
@@ -49,7 +50,7 @@ import java.util.Map;
         } catch (JSONException e) {
             MPLog.e(LOGTAG, "Can't format properties from view due to JSON issue", e);
         }
-
+        // 去抖动
         if (debounce) {
             final Signature eventSignature = new Signature(v, eventName);
             final UnsentEvent event = new UnsentEvent(eventName, properties, moment);
@@ -58,6 +59,7 @@ import java.util.Map;
             // so that we don't have a rogue thread spinning away when no events
             // are coming in.
             synchronized (mDebouncedEvents) {
+                // 当集合为空时,会停止循环, 所以需要重新开启
                 final boolean needsRestart = mDebouncedEvents.isEmpty();
                 mDebouncedEvents.put(eventSignature, event);
                 if (needsRestart) {
@@ -72,6 +74,11 @@ import java.util.Map;
     // Attempts to send all tasks in mDebouncedEvents that have been waiting for
     // more than DEBOUNCE_TIME_MILLIS. Will reschedule itself as long as there
     // are more events waiting (but will *not* wait on an empty set)
+
+    /**
+     * 尝试将等待超过 DEBOUNCE_TIME_MILLIS 时间的事件 进行处理(即发送)
+     * 将重新调度自己,只要有更多的事件等待 (但不会等待空集合)
+     */
     private final class SendDebouncedTask implements Runnable {
         @Override
         public void run() {
@@ -86,8 +93,8 @@ import java.util.Map;
                         iter.remove();
                     }
                 }
-
-                if (! mDebouncedEvents.isEmpty()) {
+                // 如果当前未处理结束..那么会等待半秒
+                if (!mDebouncedEvents.isEmpty()) {
                     // In the average case, this is enough time to catch the next signal
                     mHandler.postDelayed(this, DEBOUNCE_TIME_MILLIS / 2);
                 }
@@ -137,6 +144,8 @@ import java.util.Map;
 
     // An event is the same from a debouncing perspective if it comes from the same view,
     // and has the same event name.
+    // 同一个view上,拥有相同事件名称的事件 被当做同等事件
+    //
     private static class Signature {
         public Signature(final View view, final String eventName) {
             mHashCode = view.hashCode() ^ eventName.hashCode();
@@ -167,15 +176,25 @@ import java.util.Map;
         }
 
         public final long timeSentMillis;
+        /**
+         * 事件名称
+         */
         public final String eventName;
+        /**
+         * 携带的属性
+         */
         public final JSONObject properties;
     }
 
     private final MixpanelAPI mMixpanel;
+    /**
+     * 处理与编辑页面交互的handler
+     */
     private final Handler mHandler;
     private final Runnable mTask;
 
     // List of debounced events, All accesses must be synchronized
+    // 签名 <-> 事件信息
     private final Map<Signature, UnsentEvent> mDebouncedEvents;
 
     private static final int MAX_PROPERTY_LENGTH = 128;

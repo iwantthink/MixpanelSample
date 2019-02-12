@@ -21,14 +21,25 @@ import java.util.concurrent.Future;
 
 // In order to use writeEdits, we have to suppress the linter's check for commit()/apply()
 @SuppressLint("CommitPrefEdits")
-/* package */ class PersistentIdentity {
+        /* package */ class PersistentIdentity {
 
     // Should ONLY be called from an OnPrefsLoadedListener
     // (since it should NEVER be called concurrently)
+
+    /**
+     * 将 waiting_array 的每个obj 取出,填入 people_distinct_id  组装成新的jsonarray
+     *
+     * @param storedPreferences
+     * @return
+     */
     public static JSONArray waitingPeopleRecordsForSending(SharedPreferences storedPreferences) {
         JSONArray ret = null;
-        final String peopleDistinctId = storedPreferences.getString("people_distinct_id", null);
-        final String waitingPeopleRecords = storedPreferences.getString("waiting_array", null);
+        final String peopleDistinctId =
+                storedPreferences.getString("people_distinct_id", null);
+        final String waitingPeopleRecords =
+                storedPreferences.getString("waiting_array", null);
+
+        //非空判断
         if ((null != waitingPeopleRecords) && (null != peopleDistinctId)) {
             JSONArray waitingObjects = null;
             try {
@@ -81,10 +92,15 @@ import java.util.concurrent.Future;
         mReferrerPropertiesCache = null;
         // 初始化时 是false
         mIdentitiesLoaded = false;
+        // SP 发生变换时的回调
         mReferrerChangeListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
             @Override
-            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences,
+                                                  String key) {
                 synchronized (sReferrerPrefsLock) {
+                    // 将 LoadReferrerPreferences 中的所有key-value 取出
+                    // 放到 mReferrerPropertiesCache 这个Map中
+                    // 功能就是在SP发生变化时, 更新mReferrerPropertiesCache 这个Map
                     readReferrerProperties();
                     sReferrerPrefsDirty = false;
                 }
@@ -132,13 +148,21 @@ import java.util.concurrent.Future;
         storeSuperProperties();
     }
 
+    /**
+     * 获取 LoadReferrerPreferences 中的数据
+     * 会进行缓存
+     *
+     * @return
+     */
     public Map<String, String> getReferrerProperties() {
         synchronized (sReferrerPrefsLock) {
+            // 判断是否是 脏数据, 是则重新获取
             if (sReferrerPrefsDirty || null == mReferrerPropertiesCache) {
                 readReferrerProperties();
                 sReferrerPrefsDirty = false;
             }
         }
+
         return mReferrerPropertiesCache;
     }
 
@@ -228,6 +252,11 @@ import java.util.concurrent.Future;
         return ret;
     }
 
+
+    /**
+     * 清空 LoadStoredPreferences 这个SP
+     * 会更新缓存信息,mSuperPropertiesCache,mEventsDistinctId mPeopleDistinctId
+     */
     public synchronized void clearPreferences() {
         // Will clear distinct_ids, superProperties,
         // and waiting People Analytics properties. Will have no effect
@@ -238,7 +267,10 @@ import java.util.concurrent.Future;
             final SharedPreferences.Editor prefsEdit = prefs.edit();
             prefsEdit.clear();
             writeEdits(prefsEdit);
+            // 获取 super_properties 字段
+            // 保存到 mSuperPropertiesCache,用作缓存
             readSuperProperties();
+            // 从 Sp中读取 event 或 people的 distinct_id,保存到缓存中
             readIdentities();
         } catch (final ExecutionException e) {
             throw new RuntimeException(e.getCause());
@@ -247,6 +279,9 @@ import java.util.concurrent.Future;
         }
     }
 
+    /**
+     * 清除 TimeEventsPreferences sp的信息
+     */
     public void clearTimeEvents() {
         try {
             final SharedPreferences prefs = mTimeEventsPreferences.get();
@@ -347,6 +382,12 @@ import java.util.concurrent.Future;
     }
 
     // access is synchronized outside (mEventTimings)
+
+    /**
+     * 移除TimeEvent 中的 指定eventname key
+     *
+     * @param timeEventName
+     */
     public void removeTimeEvent(String timeEventName) {
         try {
             final SharedPreferences prefs = mTimeEventsPreferences.get();
@@ -463,14 +504,24 @@ import java.util.concurrent.Future;
         return false;
     }
 
+    /**
+     * 会对是否首次加载这个状态进行保存,优先获取sp中的状态
+     *
+     * @param dbExists
+     * @return
+     */
     public synchronized boolean isFirstLaunch(boolean dbExists) {
         if (sIsFirstAppLaunch == null) {
             try {
-                SharedPreferences mixpanelPreferences = mMixpanelPreferences.get();
-                boolean hasLaunched = mixpanelPreferences.getBoolean("has_launched", false);
+                SharedPreferences mixpanelPreferences =
+                        mMixpanelPreferences.get();
+                boolean hasLaunched = mixpanelPreferences.
+                        getBoolean("has_launched", false);
+
                 if (hasLaunched) {
                     sIsFirstAppLaunch = false;
                 } else {
+
                     sIsFirstAppLaunch = !dbExists;
                 }
             } catch (ExecutionException e) {
@@ -483,6 +534,10 @@ import java.util.concurrent.Future;
         return sIsFirstAppLaunch;
     }
 
+
+    /**
+     * 保存第一次已经加载过的状态
+     */
     public synchronized void setHasLaunched() {
         try {
             SharedPreferences.Editor mixpanelPreferencesEditor =
@@ -496,11 +551,18 @@ import java.util.concurrent.Future;
         }
     }
 
+
+    /**
+     * 从 LoadStoredPreferences中获取 seen_campaign_ids,并将其进行拆分 保存到HashSet中
+     *
+     * @return
+     */
     public synchronized HashSet<Integer> getSeenCampaignIds() {
         HashSet<Integer> campaignIds = new HashSet<>();
         try {
             SharedPreferences mpPrefs = mLoadStoredPreferences.get();
             String seenIds = mpPrefs.getString("seen_campaign_ids", "");
+            // 使用 DELIMITER作为指定的分隔符
             StringTokenizer stTokenizer = new StringTokenizer(seenIds, DELIMITER);
             while (stTokenizer.hasMoreTokens()) {
                 campaignIds.add(Integer.valueOf(stTokenizer.nextToken()));
@@ -577,10 +639,16 @@ import java.util.concurrent.Future;
         mReferrerPropertiesCache = new HashMap<String, String>();
 
         try {
-            final SharedPreferences referrerPrefs = mLoadReferrerPreferences.get();
-            referrerPrefs.unregisterOnSharedPreferenceChangeListener(mReferrerChangeListener);
-            referrerPrefs.registerOnSharedPreferenceChangeListener(mReferrerChangeListener);
+            //获取SP
+            final SharedPreferences referrerPrefs =
+                    mLoadReferrerPreferences.get();
 
+            // 注册
+            referrerPrefs.
+                    unregisterOnSharedPreferenceChangeListener(mReferrerChangeListener);
+            referrerPrefs.
+                    registerOnSharedPreferenceChangeListener(mReferrerChangeListener);
+            // 获取所有的key-value
             final Map<String, ?> prefsMap = referrerPrefs.getAll();
             for (final Map.Entry<String, ?> entry : prefsMap.entrySet()) {
                 final String prefsName = entry.getKey();
@@ -715,6 +783,11 @@ import java.util.concurrent.Future;
         }
     }
 
+    /**
+     * 执行sp同步
+     *
+     * @param editor
+     */
     private static void writeEdits(final SharedPreferences.Editor editor) {
         editor.apply();
     }
@@ -735,6 +808,9 @@ import java.util.concurrent.Future;
     private String mEventsDistinctId;
     private String mPeopleDistinctId;
     private JSONArray mWaitingPeopleRecords;
+    /**
+     * setOptOutTracking() 方法进行更改
+     */
     private Boolean mIsUserOptOut;
     private static Integer sPreviousVersionCode;
     private static Boolean sIsFirstAppLaunch;

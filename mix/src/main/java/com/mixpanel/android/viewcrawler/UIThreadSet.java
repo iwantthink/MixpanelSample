@@ -15,6 +15,11 @@ import java.util.Set;
         mSet = new HashSet<T>();
     }
 
+    /**
+     * 只能在主线程中对集合进行添加
+     *
+     * @param item
+     */
     public void add(T item) {
         if (Thread.currentThread() != Looper.getMainLooper().getThread()) {
             throw new RuntimeException("Can't add an activity when not on the UI thread");
@@ -22,6 +27,11 @@ import java.util.Set;
         mSet.add(item);
     }
 
+    /**
+     * 只能在主线程中对集合进行删除
+     *
+     * @param item
+     */
     public void remove(T item) {
         if (Thread.currentThread() != Looper.getMainLooper().getThread()) {
             throw new RuntimeException("Can't remove an activity when not on the UI thread");
@@ -30,6 +40,8 @@ import java.util.Set;
     }
 
     /**
+     * 只能在主线程中
+     * <p>
      * 获取当前所有正在运行的activity
      *
      * @return
@@ -41,6 +53,12 @@ import java.util.Set;
         return Collections.unmodifiableSet(mSet);
     }
 
+    /**
+     * 只能在主线程中
+     * 判断是否为空
+     *
+     * @return
+     */
     public boolean isEmpty() {
         if (Thread.currentThread() != Looper.getMainLooper().getThread()) {
             throw new RuntimeException("Can't check isEmpty() when not on the UI thread");

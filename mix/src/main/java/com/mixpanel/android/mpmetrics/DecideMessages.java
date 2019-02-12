@@ -184,7 +184,8 @@ import java.util.Set;
     }
 
     public synchronized boolean hasUpdatesAvailable() {
-        return (! mUnseenNotifications.isEmpty()) || (mVariants != null && mVariants.length() > 0);
+        return (! mUnseenNotifications.isEmpty()) ||
+                (mVariants != null && mVariants.length() > 0);
     }
 
     public Boolean isAutomaticEventsEnabled() {

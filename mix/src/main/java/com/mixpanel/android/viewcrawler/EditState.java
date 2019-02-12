@@ -101,6 +101,7 @@ import java.util.Set;
 
     // Must be called on UI Thread
     private void applyIntendedEdits() {
+        //遍历所有在集合中的Activity
         for (final Activity activity : getAll()) {
             //获取Activity名称
             final String activityName = activity.getClass().getCanonicalName();
@@ -173,10 +174,13 @@ import java.util.Set;
                 //注册回调,在视图发生变化时 会执行run
                 observer.addOnGlobalLayoutListener(this);
             }
-            //开启run循环
+            //手动开启run循环
             run();
         }
 
+        /**
+         * 控件树布局或可见度 发生改变时会回调
+         */
         @Override
         public void onGlobalLayout() {
             run();
@@ -184,7 +188,9 @@ import java.util.Set;
 
         @Override
         public void run() {
+            //当前Runnable 是否存活
             if (!mAlive) {
+                // 非存活状态,直接跳出
                 return;
             }
             //获取rootView
@@ -217,7 +223,7 @@ import java.util.Set;
             if (mAlive) {
                 final View viewRoot = mViewRoot.get();
                 if (null != viewRoot) {
-                    //移除GlobalOnLayoutListener
+                    //移除GlobalOnLayoutListener,其监听着控件
                     final ViewTreeObserver observer = viewRoot.getViewTreeObserver();
                     if (observer.isAlive()) {
                         observer.removeGlobalOnLayoutListener(this); // Deprecated Name
@@ -230,7 +236,13 @@ import java.util.Set;
             mAlive = false;
         }
 
+        /**
+         * 用来控制结束循环
+         */
         private volatile boolean mDying;
+        /**
+         * 当前循环是否继续
+         */
         private boolean mAlive;
         private final WeakReference<View> mViewRoot;
         /**
@@ -240,9 +252,15 @@ import java.util.Set;
          * 3. ViewDetectorVisitor
          */
         private final ViewVisitor mEdit;
+        /**
+         * 运行在主线程的Handler
+         */
         private final Handler mHandler;
     }
 
+    /**
+     * 运行在主线程的Handler
+     */
     private final Handler mUiThreadHandler;
     /**
      * ActivityName -  ViewVisitor集合

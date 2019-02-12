@@ -23,11 +23,22 @@ public abstract class ResourceReader implements ResourceIds {
             initialize();
         }
 
+        /**
+         * 获取系统R.id类
+         *
+         * @return
+         */
         @Override
         protected Class<?> getSystemClass() {
             return android.R.id.class;
         }
 
+        /**
+         * 获取应用R.id类
+         *
+         * @param context
+         * @return
+         */
         @Override
         protected String getLocalClassName(Context context) {
             return mResourcePackageName + ".R$id";
@@ -56,22 +67,45 @@ public abstract class ResourceReader implements ResourceIds {
         private final String mResourcePackageName;
     }
 
+    /**
+     * 创建集合进行保存
+     *
+     * @param context
+     */
     protected ResourceReader(Context context) {
         mContext = context;
         mIdNameToId = new HashMap<String, Integer>();
         mIdToIdName = new SparseArray<String>();
     }
 
+    /**
+     * 判断是否存在指定id名称
+     *
+     * @param name
+     * @return
+     */
     @Override
     public boolean knownIdName(String name) {
         return mIdNameToId.containsKey(name);
     }
 
+    /**
+     * 获取id名称对应的id
+     *
+     * @param name
+     * @return
+     */
     @Override
     public int idFromName(String name) {
         return mIdNameToId.get(name);
     }
 
+    /**
+     * 获取id对应的id名称
+     *
+     * @param id
+     * @return
+     */
     @Override
     public String nameForId(int id) {
         return mIdToIdName.get(id);
@@ -105,6 +139,7 @@ public abstract class ResourceReader implements ResourceIds {
     }
 
     protected abstract Class<?> getSystemClass();
+
     protected abstract String getLocalClassName(Context context);
 
     protected void initialize() {
@@ -141,7 +176,14 @@ public abstract class ResourceReader implements ResourceIds {
     }
 
     private final Context mContext;
+    /**
+     * id名称 对应 id
+     */
     private final Map<String, Integer> mIdNameToId;
+    /**
+     * id 对应 id名称
+     * key 必须是 int
+     */
     private final SparseArray<String> mIdToIdName;
 
     @SuppressWarnings("unused")

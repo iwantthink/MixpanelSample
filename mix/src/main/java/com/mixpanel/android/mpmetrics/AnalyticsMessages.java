@@ -45,8 +45,14 @@ import javax.net.ssl.SSLSocketFactory;
      */
     /* package */ AnalyticsMessages(final Context context) {
         mContext = context;
+        //从清单文件中获取配置信息
         mConfig = getConfig(context);
+
+        // 创建Worker 用来管理进行IO的Thread
+        // Worker 会创建一个Handler,运行在自己创建的HandlerThread中
+        //
         mWorker = createWorker();
+        //创建一个新的HttpService , 去判断是否 启用了ADBlocker
         getPoster().checkIsMixpanelBlocked();
     }
 
@@ -139,14 +145,31 @@ import javax.net.ssl.SSLSocketFactory;
         return mWorker.isDead();
     }
 
+    /**
+     * 创建SqliteOpenHelper
+     *
+     * @param context
+     * @return
+     */
     protected MPDbAdapter makeDbAdapter(Context context) {
         return MPDbAdapter.getInstance(context);
     }
 
+    /**
+     * 获取配置信息的单例对象
+     *
+     * @param context
+     * @return
+     */
     protected MPConfig getConfig(Context context) {
         return MPConfig.getInstance(context);
     }
 
+    /**
+     * 创建一个新的HttpService
+     *
+     * @return
+     */
     protected RemoteService getPoster() {
         return new HttpService();
     }
@@ -255,19 +278,31 @@ import javax.net.ssl.SSLSocketFactory;
     // Worker will manage the (at most single) IO thread associated with
     // this AnalyticsMessages instance.
     // XXX: Worker class is unnecessary, should be just a subclass of HandlerThread
+    // Worker 能够管理与 AnalyticsMessages 实例相关联的 IO 线程,最多一个!
     class Worker {
         public Worker() {
             mHandler = restartWorkerThread();
         }
 
+        /**
+         * 判断Handler 是否为空
+         *
+         * @return
+         */
         public boolean isDead() {
             synchronized (mHandlerLock) {
                 return mHandler == null;
             }
         }
 
+        /**
+         * 发送指定msg
+         *
+         * @param msg
+         */
         public void runMessage(Message msg) {
             synchronized (mHandlerLock) {
+                // 对Handler进行非空判断
                 if (mHandler == null) {
                     // We died under suspicious circumstances. Don't try to send any more events.
                     logAboutMessageToMixpanel("Dead mixpanel worker dropping a message: " + msg.what);
@@ -280,18 +315,24 @@ import javax.net.ssl.SSLSocketFactory;
         // NOTE that the returned worker will run FOREVER, unless you send a hard kill
         // (which you really shouldn't)
         protected Handler restartWorkerThread() {
+            // 创建一个HandlerThread,其开启了 Looper
             final HandlerThread thread = new HandlerThread("com.mixpanel.android.AnalyticsWorker", Process.THREAD_PRIORITY_BACKGROUND);
             thread.start();
+            // 创建一个Handler  具体逻辑 执行在HandlerThread中
             final Handler ret = new AnalyticsMessageHandler(thread.getLooper());
             return ret;
         }
 
         class AnalyticsMessageHandler extends Handler {
+
             public AnalyticsMessageHandler(Looper looper) {
                 super(looper);
+                // Handler初始化时 不会去创建,只有在处理msg时 才会去创建 DBAdapter
                 mDbAdapter = null;
+                // 系统信息获取的封装
                 mSystemInformation = SystemInformation.getInstance(mContext);
                 mDecideChecker = createDecideChecker();
+                // 刷新间隔间隔
                 mFlushInterval = mConfig.getFlushInterval();
             }
 
@@ -301,10 +342,15 @@ import javax.net.ssl.SSLSocketFactory;
 
             @Override
             public void handleMessage(Message msg) {
+                // 创建 SqliteOpenHelper
+                // 并删除超过有效期的数据 , 针对 Events 表 和 People表
                 if (mDbAdapter == null) {
                     mDbAdapter = makeDbAdapter(mContext);
-                    mDbAdapter.cleanupEvents(System.currentTimeMillis() - mConfig.getDataExpiration(), MPDbAdapter.Table.EVENTS);
-                    mDbAdapter.cleanupEvents(System.currentTimeMillis() - mConfig.getDataExpiration(), MPDbAdapter.Table.PEOPLE);
+                    // 当前时间- 有效期限 = 最大的有效时间
+                    mDbAdapter.cleanupEvents(System.currentTimeMillis() - mConfig.getDataExpiration(),
+                            MPDbAdapter.Table.EVENTS);
+                    mDbAdapter.cleanupEvents(System.currentTimeMillis() - mConfig.getDataExpiration(),
+                            MPDbAdapter.Table.PEOPLE);
                 }
 
                 try {
@@ -313,6 +359,7 @@ import javax.net.ssl.SSLSocketFactory;
                     int returnCode = MPDbAdapter.DB_UNDEFINED_CODE;
                     String token = null;
 
+                    // people 入队
                     if (msg.what == ENQUEUE_PEOPLE) {
                         final PeopleDescription message = (PeopleDescription) msg.obj;
 
@@ -320,8 +367,10 @@ import javax.net.ssl.SSLSocketFactory;
                         logAboutMessageToMixpanel("    " + message.toString());
                         token = message.getToken();
                         returnCode = mDbAdapter.addJSON(message.getMessage(), token, MPDbAdapter.Table.PEOPLE, false);
+                        // event 入队
                     } else if (msg.what == ENQUEUE_EVENTS) {
-                        final EventDescription eventDescription = (EventDescription) msg.obj;
+                        final EventDescription eventDescription =
+                                (EventDescription) msg.obj;
                         try {
                             //解析
                             final JSONObject message = prepareEventObject(eventDescription);
@@ -329,16 +378,31 @@ import javax.net.ssl.SSLSocketFactory;
                             logAboutMessageToMixpanel("    " + message.toString());
                             token = eventDescription.getToken();
 
-                            DecideMessages decide = mDecideChecker.getDecideMessages(token);
-                            if (decide != null && eventDescription.isAutomatic() && !decide.shouldTrackAutomaticEvent()) {
+                            DecideMessages decide =
+                                    mDecideChecker.getDecideMessages(token);
+
+                            // DecideMessages 不为空
+                            // 事件是自动事件
+                            // DecideMessages 不抓取 自动事件
+                            if (decide != null &&
+                                    eventDescription.isAutomatic() &&
+                                    !decide.shouldTrackAutomaticEvent()) {
+                                // 直接结束数据上传
                                 return;
                             }
                             //执行成功,则返回插入数据的数量
                             //执行失败,则返回失败的原因
-                            returnCode = mDbAdapter.addJSON(message, token, MPDbAdapter.Table.EVENTS, eventDescription.isAutomatic());
+                            // 就是往数据库中添加数据
+                            returnCode = mDbAdapter.addJSON(message,
+                                    token,
+                                    MPDbAdapter.Table.EVENTS,
+                                    eventDescription.isAutomatic());
                         } catch (final JSONException e) {
                             MPLog.e(LOGTAG, "Exception tracking event " + eventDescription.getEventName(), e);
                         }
+
+                        // 上传信息
+                        // 根据周期性计划或是 强制刷新
                     } else if (msg.what == FLUSH_QUEUE) {
                         //将数据库中的数据统统出库上传
                         logAboutMessageToMixpanel("Flushing queue due to scheduled or forced flush");
@@ -369,28 +433,44 @@ import javax.net.ssl.SSLSocketFactory;
                     } else if (msg.what == REGISTER_FOR_GCM) {
                         final String senderId = (String) msg.obj;
                         runGCMRegistration(senderId);
+
+                        // 清空数据库
                     } else if (msg.what == EMPTY_QUEUES) {
                         //清空数据库中所有的 Events 和People相关的数据
                         final MixpanelDescription message = (MixpanelDescription) msg.obj;
                         token = message.getToken();
+                        // 清空 events表中 指定token的数据
                         mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.EVENTS, token);
+                        // 清空 people表中 指定token的数据
                         mDbAdapter.cleanupAllEvents(MPDbAdapter.Table.PEOPLE, token);
+
+                        // 强制杀死 Worker
                     } else if (msg.what == KILL_WORKER) {
-                        MPLog.w(LOGTAG, "Worker received a hard kill. Dumping all events and force-killing. Thread id " + Thread.currentThread().getId());
+                        MPLog.w(LOGTAG, "Worker received a hard kill. " +
+                                "Dumping all events and force-killing. " +
+                                "Thread id " + Thread.currentThread().getId());
                         synchronized (mHandlerLock) {
+                            // 删除数据库
                             mDbAdapter.deleteDB();
+                            // 置空 Handler
                             mHandler = null;
+                            // 关闭Looper
                             Looper.myLooper().quit();
                         }
                     } else {
                         MPLog.e(LOGTAG, "Unexpected message received by Mixpanel worker: " + msg);
                     }
 
-                    ///////////////////////////
+
+                    // 针对 returnCode 进行判断
+                    // ENQUEUE_PEOPLE 和 ENQUEUE_EVENTS 时 会对returncode进行修改,默认是 DB_UNDEFINED_CODE
+                    // 如果 returnCode 超过一次上传的数量限制,默认是40
+                    // 或者 db out of memory error
                     if ((returnCode >= mConfig.getBulkUploadLimit() ||
                             returnCode == MPDbAdapter.DB_OUT_OF_MEMORY_ERROR)
                             && mFailedRetries <= 0 && token != null) {
                         logAboutMessageToMixpanel("Flushing queue due to bulk upload limit (" + returnCode + ") for project " + token);
+                        //更新并记录刷新时间
                         updateFlushFrequency();
                         sendAllData(mDbAdapter, token);
                         if (SystemClock.elapsedRealtime() >= mDecideRetryAfter) {
@@ -477,39 +557,67 @@ import javax.net.ssl.SSLSocketFactory;
 
             private void sendAllData(MPDbAdapter dbAdapter, String token) {
                 final RemoteService poster = getPoster();
+                // 如果无法联网,则直接结束数据的发送逻辑
                 if (!poster.isOnline(mContext, mConfig.getOfflineMode())) {
                     logAboutMessageToMixpanel("Not flushing data to Mixpanel because the device is not connected to the internet.");
                     return;
                 }
 
-                sendData(dbAdapter, token, MPDbAdapter.Table.EVENTS, mConfig.getEventsEndpoint());
-                sendData(dbAdapter, token, MPDbAdapter.Table.PEOPLE, mConfig.getPeopleEndpoint());
+                // getEventsEndPoints 获取 events 请求地址
+                sendData(dbAdapter,
+                        token,
+                        MPDbAdapter.Table.EVENTS,
+                        mConfig.getEventsEndpoint());
+
+                sendData(dbAdapter,
+                        token,
+                        MPDbAdapter.Table.PEOPLE,
+                        mConfig.getPeopleEndpoint());
             }
 
             private void sendData(MPDbAdapter dbAdapter, String token, MPDbAdapter.Table table, String url) {
                 final RemoteService poster = getPoster();
+                // 获取指定token对应的 DecideMessage
+                // DecideChecker 包含了 一个hashmap, 保存 DecideMessages 对象
                 DecideMessages decideMessages = mDecideChecker.getDecideMessages(token);
+
+                // 是否包含 automatyic 的数据
                 boolean includeAutomaticEvents = true;
-                if (decideMessages == null || decideMessages.isAutomaticEventsEnabled() == null) {
+                if (decideMessages == null ||
+                        decideMessages.isAutomaticEventsEnabled() == null) {
                     includeAutomaticEvents = false;
                 }
-                String[] eventsData = dbAdapter.generateDataString(table, token, includeAutomaticEvents);
+
+                //  返回的数据格式 {last_id, data, queueCount};
+                // queueCount 表示的总数
+                // data 表示具体的数据生成的json, 一条data 最多包含50 条数据
+                String[] eventsData = dbAdapter.generateDataString(
+                        table,
+                        token,
+                        includeAutomaticEvents);
+
+                // 指定table中 ,指定token字段的数据的数量
                 Integer queueCount = 0;
                 if (eventsData != null) {
                     queueCount = Integer.valueOf(eventsData[2]);
                 }
 
-                while (eventsData != null && queueCount > 0) {
-                    final String lastId = eventsData[0];
-                    final String rawMessage = eventsData[1];
 
+                while (eventsData != null && queueCount > 0) {
+                    // 获取的N条数据中, 最后一条的id
+                    final String lastId = eventsData[0];
+                    // 原始数据
+                    final String rawMessage = eventsData[1];
+                    // 对数据进行base64编码
                     final String encodedData = Base64Coder.encodeString(rawMessage);
+                    // 保存数据
                     final Map<String, Object> params = new HashMap<String, Object>();
                     params.put("data", encodedData);
                     if (MPConfig.DEBUG) {
                         params.put("verbose", "1");
                     }
 
+                    // 表示是否删除数据库中的 data
                     boolean deleteEvents = true;
                     byte[] response;
                     try {
@@ -690,24 +798,38 @@ import javax.net.ssl.SSLSocketFactory;
             private int mFailedRetries;
         }// AnalyticsMessageHandler
 
+        /**
+         * 更新刷新的频率
+         */
         private void updateFlushFrequency() {
+            // 当前时间
             final long now = System.currentTimeMillis();
+            // 刷新次数+1
             final long newFlushCount = mFlushCount + 1;
 
+            // 判断是否是第一次刷新, 如果不是 则需要进行刷新间隔时间的判断
             if (mLastFlushTime > 0) {
+                // 刷新间隔
                 final long flushInterval = now - mLastFlushTime;
+                // 刷新间隔+ 刷新次数* 平均刷新频率
                 final long totalFlushTime = flushInterval + (mAveFlushFrequency * mFlushCount);
+                // 总刷新时间 / 刷新次数 =  平均刷新时间
                 mAveFlushFrequency = totalFlushTime / newFlushCount;
 
                 final long seconds = mAveFlushFrequency / 1000;
                 logAboutMessageToMixpanel("Average send frequency approximately " + seconds + " seconds.");
             }
 
+            // 记录当前的刷新时间, 为下一次 判断做准备
             mLastFlushTime = now;
+            // 记录刷新次数
             mFlushCount = newFlushCount;
         }
 
         private final Object mHandlerLock = new Object();
+        /**
+         * AnalyticsMessageHandler
+         */
         private Handler mHandler;
         private long mFlushCount = 0;
         private long mAveFlushFrequency = 0;

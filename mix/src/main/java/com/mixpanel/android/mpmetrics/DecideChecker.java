@@ -65,11 +65,14 @@ import javax.net.ssl.SSLSocketFactory;
         mContext = context;
         mConfig = config;
         mChecks = new HashMap<String, DecideMessages>();
+        // 保存图片的LruCache
         mImageStore = createImageStore(context);
+        // 系统信息
         mSystemInformation = SystemInformation.getInstance(context);
     }
 
     protected ImageStore createImageStore(final Context context) {
+        // LRUcache 保存Bitmap
         return new ImageStore(context, "DecideChecker");
     }
 
@@ -350,6 +353,12 @@ import javax.net.ssl.SSLSocketFactory;
         return response;
     }
 
+    /**
+     * 根据token 去 map中获取DecideMessage
+     *
+     * @param token
+     * @return
+     */
     public DecideMessages getDecideMessages(String token) {
         return mChecks.get(token);
     }

@@ -44,6 +44,7 @@ public class FadingImageView extends ImageView {
         }
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public void draw(Canvas canvas) {
         if (mShouldShowShadow) {

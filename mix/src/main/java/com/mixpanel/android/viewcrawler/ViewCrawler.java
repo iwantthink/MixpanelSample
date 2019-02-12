@@ -59,13 +59,16 @@ import javax.net.ssl.SSLSocketFactory;
  * not be called directly by your code.
  */
 @TargetApi(MPConfig.UI_FEATURES_MIN_API)
-public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisitor.OnLayoutErrorListener {
+public class ViewCrawler implements UpdatesFromMixpanel,
+        TrackingDebug,
+        ViewVisitor.OnLayoutErrorListener {
 
     public ViewCrawler(Context context, String token, MixpanelAPI mixpanel, Tweaks tweaks) {
         //获取配置
         mConfig = MPConfig.getInstance(context);
 
         mContext = context;
+        // 集合 保存activity信息
         mEditState = new EditState();
         mTweaks = tweaks;
         //不变的设备信息
@@ -73,27 +76,34 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
         //字体的缩放因子,通常与density相等,但是调节系统字体大小之后会改变
         mScaledDensity = Resources.getSystem().getDisplayMetrics().scaledDensity;
         mTweaksUpdatedListeners = Collections.newSetFromMap(new ConcurrentHashMap<OnMixpanelTweaksUpdatedListener, Boolean>());
-
+        // 创建一个带Handler 的Thread
         final HandlerThread thread = new HandlerThread(ViewCrawler.class.getCanonicalName());
         thread.setPriority(Process.THREAD_PRIORITY_BACKGROUND);
         thread.start();
-        //Handler 用来处理..
+
+        // layouterrorListener 就是 布局错误的处理回调
         mMessageThreadHandler = new ViewCrawlerHandler(context, token,
                 thread.getLooper(),
                 this);
-        // 创建了一个动态事件抓取的类
+
+        // 用来处理事件触发之后的逻辑,发送,去抖动
         mDynamicEventTracker = new DynamicEventTracker(mixpanel, mMessageThreadHandler);
+
         mMixpanel = mixpanel;
 
         final Application app = (Application) context.getApplicationContext();
-        //为每个Activity注册 加速度传感器 监听回调
-        //将每个Activity 传入到 mEditState中 待用
+
+        // 为每个Activity注册 加速度传感器 监听回调
+        // 将每个Activity 传入到 mEditState中 待用
+        // 会区分 模拟器和真机 ,俩者有不同的逻辑
         app.registerActivityLifecycleCallbacks(new LifecycleCallbacks());
 
         mTweaks.addOnTweakDeclaredListener(new Tweaks.OnTweakDeclaredListener() {
             @Override
             public void onTweakDeclared() {
-                final Message msg = mMessageThreadHandler.obtainMessage(ViewCrawler.MESSAGE_SEND_DEVICE_INFO);
+                // 发送设备信息到编辑页面
+                final Message msg = mMessageThreadHandler.
+                        obtainMessage(ViewCrawler.MESSAGE_SEND_DEVICE_INFO);
                 mMessageThreadHandler.sendMessage(msg);
             }
         });
@@ -179,6 +189,11 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
         mMessageThreadHandler.sendMessage(m);
     }
 
+    /**
+     * 往编辑页面发送布局错误消息
+     *
+     * @param e
+     */
     @Override
     public void onLayoutError(ViewVisitor.LayoutErrorMessage e) {
         final Message m = mMessageThreadHandler.obtainMessage();
@@ -217,11 +232,13 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
     }
 
     private class LifecycleCallbacks implements
-            Application.ActivityLifecycleCallbacks, FlipGesture.OnFlipGestureListener {
+            Application.ActivityLifecycleCallbacks,
+            FlipGesture.OnFlipGestureListener {
 
         public LifecycleCallbacks() {
-            //创建 翻动手势
+            // 创建 翻动手势
             mFlipGesture = new FlipGesture(this);
+            // 模拟器连接器
             mEmulatorConnector = new EmulatorConnector();
         }
 
@@ -270,13 +287,16 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
         }
 
         /**
-         * 对传入的activity 设置 加速度监听
+         * 对传入的activity 设置加速度传感器监听
+         * 会判断是否是模拟器类型
          *
          * @param activity
          */
         private void installConnectionSensor(final Activity activity) {
+            // 模拟器 && 配置中并不禁止模拟器绑定事件
             if (isInEmulator() && !mConfig.getDisableEmulatorBindingUI()) {
                 mEmulatorConnector.start();
+                // 配置中并不禁止 手势绑定
             } else if (!mConfig.getDisableGestureBindingUI()) {
                 //获取传感器管理器
                 final SensorManager sensorManager = (SensorManager) activity.getSystemService(Context.SENSOR_SERVICE);
@@ -288,6 +308,11 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
             }
         }
 
+        /**
+         * 解除注册
+         *
+         * @param activity
+         */
         private void uninstallConnectionSensor(final Activity activity) {
             if (isInEmulator() && !mConfig.getDisableEmulatorBindingUI()) {
                 mEmulatorConnector.stop();
@@ -339,16 +364,19 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
             mToken = token;
             mSnapshot = null;
 
+            //获取 清单文件中的 package属性,该属性决定了R文件的名称
             String resourcePackage = mConfig.getResourcePackageName();
             if (null == resourcePackage) {
                 resourcePackage = context.getPackageName();
             }
             // 获取资源ID信息
             final ResourceIds resourceIds = new ResourceReader.Ids(resourcePackage, context);
-
+            // 图片保存处理
             mImageStore = new ImageStore(context, "ViewCrawler");
+            //TODO 待分析作用
             mProtocol = new EditProtocol(context, resourceIds,
                     mImageStore, layoutErrorListener);
+
             mOriginalEventBindings = new HashSet<MPPair<String, JSONObject>>();
             mEditorChanges = new HashMap<String, MPPair<String, JSONObject>>();
             mEditorTweaks = new HashMap<String, MPPair<String, Object>>();
@@ -370,6 +398,7 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
 
         @Override
         public void handleMessage(Message msg) {
+            //同步锁
             mStartLock.lock();
             try {
 
@@ -761,17 +790,25 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
 
         /**
          * Report that a track has occurred to the connected web UI.
+         * <p>
+         * 通知关联的 web ui 界面, 有一个事件被抓取到了
          */
         private void sendReportTrackToEditor(String eventName) {
-            if (mEditorConnection == null || !mEditorConnection.isValid() || !mEditorConnection.isConnected()) {
+
+            // 判断连接管理类 是否被创建了 是否有效  是否处于连接状态
+            if (mEditorConnection == null ||
+                    !mEditorConnection.isValid() ||
+                    !mEditorConnection.isConnected()) {
                 return;
             }
 
             final OutputStream out = mEditorConnection.getBufferedOutputStream();
             final OutputStreamWriter writer = new OutputStreamWriter(out);
+            //创建一个 json 编辑对象,直接输出给流
             final JsonWriter j = new JsonWriter(writer);
 
             try {
+
                 j.beginObject();
                 j.name("type").value("track_message");
                 j.name("payload");
@@ -780,6 +817,13 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
                     j.name("event_name").value(eventName);
                     j.endObject();
                 }
+                // 子对象 { "type"   :"track_message",
+                //         "payload":{
+                //              "event_name":"xxxx"
+                //         }
+                //       }
+
+
                 j.endObject();
                 j.flush();
             } catch (final IOException e) {
@@ -1188,9 +1232,15 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
             return mContext.getSharedPreferences(sharedPrefsName, Context.MODE_PRIVATE);
         }
 
+        /**
+         * 与编辑页面的 管理类
+         */
         private EditorConnection mEditorConnection;
         private ViewSnapshot mSnapshot;
         private final String mToken;
+        /**
+         * TODO 为什么这里需要一个 Lock.....
+         */
         private final Lock mStartLock;
         private final EditProtocol mProtocol;
         private final ImageStore mImageStore;
@@ -1343,6 +1393,8 @@ public class ViewCrawler implements UpdatesFromMixpanel, TrackingDebug, ViewVisi
     private final Map<String, String> mDeviceInfo;
     /**
      * 后台Handler
+     * Handler 用来处理与编辑页面的交互
+     * 运行在单独的线程中
      */
     private final ViewCrawlerHandler mMessageThreadHandler;
     private final float mScaledDensity;

@@ -23,6 +23,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * 由ViewCrawlerHandler 创建
+ */
 /* package */ class EditProtocol {
 
     public static class BadInstructionsException extends Exception {

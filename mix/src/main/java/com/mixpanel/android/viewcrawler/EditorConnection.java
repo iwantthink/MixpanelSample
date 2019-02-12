@@ -33,19 +33,19 @@ import java.nio.ByteBuffer;
     }
 
     public interface Editor {
-        public void sendSnapshot(JSONObject message);
+        void sendSnapshot(JSONObject message);
 
-        public void performEdit(JSONObject message);
+        void performEdit(JSONObject message);
 
-        public void clearEdits(JSONObject message);
+        void clearEdits(JSONObject message);
 
-        public void bindEvents(JSONObject message);
+        void bindEvents(JSONObject message);
 
-        public void setTweaks(JSONObject message);
+        void setTweaks(JSONObject message);
 
-        public void sendDeviceInfo();
+        void sendDeviceInfo();
 
-        public void cleanup();
+        void cleanup();
     }
 
     public EditorConnection(URI uri, Editor service, Socket sslSocket)
@@ -62,6 +62,11 @@ import java.nio.ByteBuffer;
         }
     }
 
+    /**
+     * 有效的EditorConnection  需要 WebSocket-client 对象 未关闭
+     *
+     * @return
+     */
     public boolean isValid() {
         return !mClient.isClosed() && !mClient.isClosing() && !mClient.isFlushAndClose();
     }
@@ -83,7 +88,8 @@ import java.nio.ByteBuffer;
          */
         public EditorClient(URI uri, int connectTimeout, Socket sslSocket) throws InterruptedException {
             super(uri, new Draft_17(), null, connectTimeout);
-//            setSocket(sslSocket);
+            // 开启SSL
+            setSocket(sslSocket);
         }
 
         @Override

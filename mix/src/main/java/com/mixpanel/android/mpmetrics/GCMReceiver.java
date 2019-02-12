@@ -349,6 +349,7 @@ public class GCMReceiver extends BroadcastReceiver {
         return n;
     }
 
+    @SuppressWarnings("deprecation")
     @SuppressLint("NewApi")
     @TargetApi(16)
     protected Notification makeNotificationSDK16OrHigher(Context context, PendingIntent intent, NotificationData notificationData) {
@@ -372,6 +373,7 @@ public class GCMReceiver extends BroadcastReceiver {
     }
 
     @SuppressLint("NewApi")
+    @SuppressWarnings("deprecation")
     @TargetApi(21)
     protected Notification makeNotificationSDK21OrHigher(Context context, PendingIntent intent, NotificationData notificationData) {
         final Notification.Builder builder = new Notification.Builder(context).
@@ -403,6 +405,7 @@ public class GCMReceiver extends BroadcastReceiver {
     }
 
     @SuppressLint("NewApi")
+    @SuppressWarnings("deprecation")
     @TargetApi(26)
     protected Notification makeNotificationSDK26OrHigher(Context context, PendingIntent intent, NotificationData notificationData) {
         NotificationManager mNotificationManager =

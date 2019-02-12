@@ -38,19 +38,25 @@ public class ImageStore {
     }
 
     public ImageStore(Context context, String directoryName, RemoteService poster) {
+        // 创建文件夹
         mDirectory = context.getDir(directoryName, Context.MODE_PRIVATE);
+        // 网络请求对象
         mPoster = poster;
+        // 配置文件
         mConfig = MPConfig.getInstance(context);
+        // sha1 摘要
         MessageDigest useDigest;
         try {
             useDigest = MessageDigest.getInstance("SHA1");
         } catch (NoSuchAlgorithmException e) {
+            // 不支持sha1 那就无法保存
             MPLog.w(LOGTAG, "Images won't be stored because this platform doesn't supply a SHA1 hash function");
             useDigest = null;
         }
 
         mDigest = useDigest;
 
+        // 创建LRUCache
         if (sMemoryCache == null) {
             synchronized (ImageStore.class) {
                 if (sMemoryCache == null) {
@@ -206,6 +212,9 @@ public class ImageStore {
     private final RemoteService mPoster;
     private final MessageDigest mDigest;
     private final MPConfig mConfig;
+    /**
+     *
+     */
     private static LruCache<String, Bitmap> sMemoryCache;
 
     private static final String DEFAULT_DIRECTORY_PREFIX = "MixpanelAPI.Images.";

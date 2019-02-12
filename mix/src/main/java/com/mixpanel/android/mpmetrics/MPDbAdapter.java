@@ -1,13 +1,5 @@
 package com.mixpanel.android.mpmetrics;
 
-import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -17,20 +9,27 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 import com.mixpanel.android.util.MPLog;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * SQLite database adapter for MixpanelAPI.
- *
+ * <p>
  * <p>Not thread-safe. Instances of this class should only be used
  * by a single thread.
- *
  */
 /* package */ class MPDbAdapter {
     private static final String LOGTAG = "MixpanelAPI.Database";
     private static final Map<Context, MPDbAdapter> sInstances = new HashMap<>();
 
     public enum Table {
-        EVENTS ("events"),
-        PEOPLE ("people");
+        EVENTS("events"),
+        PEOPLE("people");
 
         Table(String name) {
             mTableName = name;
@@ -56,23 +55,24 @@ import com.mixpanel.android.util.MPLog;
     private static final int DATABASE_VERSION = 5;
 
     private static final String CREATE_EVENTS_TABLE =
-       "CREATE TABLE " + Table.EVENTS.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-        KEY_DATA + " STRING NOT NULL, " +
-        KEY_CREATED_AT + " INTEGER NOT NULL, " +
-        KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
-        KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
+            "CREATE TABLE " + Table.EVENTS.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    KEY_DATA + " STRING NOT NULL, " +
+                    KEY_CREATED_AT + " INTEGER NOT NULL, " +
+                    KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
+                    KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
     private static final String CREATE_PEOPLE_TABLE =
-       "CREATE TABLE " + Table.PEOPLE.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-        KEY_DATA + " STRING NOT NULL, " +
-        KEY_CREATED_AT + " INTEGER NOT NULL, " +
-        KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
-        KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
+            "CREATE TABLE " + Table.PEOPLE.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    KEY_DATA + " STRING NOT NULL, " +
+                    KEY_CREATED_AT + " INTEGER NOT NULL, " +
+                    KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
+                    KEY_TOKEN + " STRING NOT NULL DEFAULT '')";
+
     private static final String EVENTS_TIME_INDEX =
-        "CREATE INDEX IF NOT EXISTS time_idx ON " + Table.EVENTS.getName() +
-        " (" + KEY_CREATED_AT + ");";
+            "CREATE INDEX IF NOT EXISTS time_idx ON " + Table.EVENTS.getName() +
+                    " (" + KEY_CREATED_AT + ");";
     private static final String PEOPLE_TIME_INDEX =
-        "CREATE INDEX IF NOT EXISTS time_idx ON " + Table.PEOPLE.getName() +
-        " (" + KEY_CREATED_AT + ");";
+            "CREATE INDEX IF NOT EXISTS time_idx ON " + Table.PEOPLE.getName() +
+                    " (" + KEY_CREATED_AT + ");";
 
     private final MPDatabaseHelper mDb;
 
@@ -80,6 +80,7 @@ import com.mixpanel.android.util.MPLog;
         MPDatabaseHelper(Context context, String dbName) {
             super(context, dbName, null, DATABASE_VERSION);
             mDatabaseFile = context.getDatabasePath(dbName);
+            // 配置信息
             mConfig = MPConfig.getInstance(context);
         }
 
@@ -94,9 +95,10 @@ import com.mixpanel.android.util.MPLog;
         @Override
         public void onCreate(SQLiteDatabase db) {
             MPLog.v(LOGTAG, "Creating a new Mixpanel events DB");
-
+            // 创建 俩张表
             db.execSQL(CREATE_EVENTS_TABLE);
             db.execSQL(CREATE_PEOPLE_TABLE);
+            // 创建 索引,针对 created_at 字段
             db.execSQL(EVENTS_TIME_INDEX);
             db.execSQL(PEOPLE_TIME_INDEX);
         }
@@ -125,12 +127,18 @@ import com.mixpanel.android.util.MPLog;
         }
 
         private void migrateTableFrom4To5(SQLiteDatabase db) {
-            db.execSQL("ALTER TABLE " + Table.EVENTS.getName() + " ADD COLUMN " + KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0");
-            db.execSQL("ALTER TABLE " + Table.PEOPLE.getName() + " ADD COLUMN " + KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0");
-            db.execSQL("ALTER TABLE " + Table.EVENTS.getName() + " ADD COLUMN " + KEY_TOKEN + " STRING NOT NULL DEFAULT ''");
-            db.execSQL("ALTER TABLE " + Table.PEOPLE.getName() + " ADD COLUMN " + KEY_TOKEN + " STRING NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE " + Table.EVENTS.getName() +
+                    " ADD COLUMN " + KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0");
+            db.execSQL("ALTER TABLE " + Table.PEOPLE.getName() +
+                    " ADD COLUMN " + KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0");
+            db.execSQL("ALTER TABLE " + Table.EVENTS.getName() +
+                    " ADD COLUMN " + KEY_TOKEN + " STRING NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE " + Table.PEOPLE.getName() +
+                    " ADD COLUMN " + KEY_TOKEN + " STRING NOT NULL DEFAULT ''");
 
-            Cursor eventsCursor = db.rawQuery("SELECT * FROM " + Table.EVENTS.getName(), null);
+            Cursor eventsCursor = db.rawQuery("SELECT * FROM " +
+                    Table.EVENTS.getName(), null);
+
             while (eventsCursor.moveToNext()) {
                 int rowId = 0;
                 try {
@@ -157,6 +165,9 @@ import com.mixpanel.android.util.MPLog;
             }
         }
 
+        /**
+         * 指定数据库的 文件对象
+         */
         private final File mDatabaseFile;
         private final MPConfig mConfig;
     }
@@ -173,7 +184,8 @@ import com.mixpanel.android.util.MPLog;
         synchronized (sInstances) {
             final Context appContext = context.getApplicationContext();
             MPDbAdapter ret;
-            if (! sInstances.containsKey(appContext)) {
+            // 单例
+            if (!sInstances.containsKey(appContext)) {
                 ret = new MPDbAdapter(appContext);
                 sInstances.put(appContext, ret);
             } else {
@@ -186,9 +198,10 @@ import com.mixpanel.android.util.MPLog;
     /**
      * Adds a JSON string representing an event with properties or a person record
      * to the SQLiteDatabase.
-     * @param j the JSON to record
-     * @param token token of the project
-     * @param table the table to insert into, either "events" or "people"
+     *
+     * @param j                 the JSON to record
+     * @param token             token of the project
+     * @param table             the table to insert into, either "events" or "people"
      * @param isAutomaticRecord mark the record as an automatic event or not
      * @return the number of rows in the table, or DB_OUT_OF_MEMORY_ERROR/DB_UPDATE_ERROR
      * on failure
@@ -241,8 +254,9 @@ import com.mixpanel.android.util.MPLog;
 
     /**
      * Removes events with an _id <= last_id from table
-     * @param last_id the last id to delete
-     * @param table the table to remove events from, either "events" or "people"
+     *
+     * @param last_id                the last id to delete
+     * @param table                  the table to remove events from, either "events" or "people"
      * @param includeAutomaticEvents whether or not automatic events should be included in the cleanup
      */
     public void cleanupEvents(String last_id, Table table, String token, boolean includeAutomaticEvents) {
@@ -270,8 +284,11 @@ import com.mixpanel.android.util.MPLog;
     }
 
     /**
+     * 删除指定表中创建时间 早于time 的数据
+     * <p>
      * Removes events before time.
-     * @param time the unix epoch in milliseconds to remove events before
+     *
+     * @param time  the unix epoch in milliseconds to remove events before
      * @param table the table to remove events from, either "events" or "people"
      */
     public void cleanupEvents(long time, Table table) {
@@ -279,7 +296,9 @@ import com.mixpanel.android.util.MPLog;
 
         try {
             final SQLiteDatabase db = mDb.getWritableDatabase();
-            db.delete(tableName, KEY_CREATED_AT + " <= " + time, null);
+            db.delete(tableName,
+                    KEY_CREATED_AT + " <= " + time,
+                    null);
         } catch (final SQLiteException e) {
             MPLog.e(LOGTAG, "Could not clean timed-out Mixpanel records from " + tableName + ". Re-initializing database.", e);
 
@@ -294,7 +313,10 @@ import com.mixpanel.android.util.MPLog;
     }
 
     /**
+     * 清空指定表中,指定token的数据
+     * <p>
      * Removes all events given a project token.
+     *
      * @param table the table to remove events from, either "events" or "people"
      * @param token token of the project to remove events from
      */
@@ -303,7 +325,9 @@ import com.mixpanel.android.util.MPLog;
 
         try {
             final SQLiteDatabase db = mDb.getWritableDatabase();
-            db.delete(tableName, KEY_TOKEN + " = '" + token + "'", null);
+            db.delete(tableName,
+                    KEY_TOKEN + " = '" + token + "'",
+                    null);
         } catch (final SQLiteException e) {
             MPLog.e(LOGTAG, "Could not clean timed-out Mixpanel records from " + tableName + ". Re-initializing database.", e);
 
@@ -319,6 +343,7 @@ import com.mixpanel.android.util.MPLog;
 
     /**
      * Removes automatic events.
+     *
      * @param token token of the project you want to remove automatic events from
      */
     public synchronized void cleanupAutomaticEvents(String token) {
@@ -354,39 +379,55 @@ import com.mixpanel.android.util.MPLog;
      * Returns the data string to send to Mixpanel and the maximum ID of the row that
      * we're sending, so we know what rows to delete when a track request was successful.
      *
-     * @param table the table to read the JSON from, either "events" or "people"
-     * @param token the token of the project you want to retrieve the records for
+     * @param table                  the table to read the JSON from, either "events" or "people"
+     * @param token                  the token of the project you want to retrieve the records for
      * @param includeAutomaticEvents whether or not it should include pre-track records
      * @return String array containing the maximum ID, the data string
      * representing the events (or null if none could be successfully retrieved) and the total
      * current number of events in the queue.
      */
-    public String[] generateDataString(Table table, String token, boolean includeAutomaticEvents) {
+    public String[] generateDataString(Table table,
+                                       String token,
+                                       boolean includeAutomaticEvents) {
         Cursor c = null;
         Cursor queueCountCursor = null;
+        // 保存json数据
         String data = null;
+        // 获取到的数据的 最后一条 的 id
         String last_id = null;
+        // 查询到的数据数量
         String queueCount = null;
         final String tableName = table.getName();
         final SQLiteDatabase db = mDb.getReadableDatabase();
 
         try {
-            StringBuffer rawDataQuery = new StringBuffer("SELECT * FROM " + tableName + " WHERE " + KEY_TOKEN + " = '" + token + "' ");
-            StringBuffer queueCountQuery = new StringBuffer("SELECT COUNT(*) FROM " + tableName + " WHERE " + KEY_TOKEN + " = '" + token + "' ");
+            // 查询数据的sql
+            StringBuffer rawDataQuery =
+                    new StringBuffer("SELECT * FROM " + tableName + " WHERE "
+                            + KEY_TOKEN + " = '" + token + "' ");
+           //  查询数据的数量的sql
+            StringBuffer queueCountQuery =
+                    new StringBuffer("SELECT COUNT(*) FROM " + tableName + " WHERE "
+                            + KEY_TOKEN + " = '" + token + "' ");
+
+            // 如果不包含 automatic 类型的数据 则修改 sql
             if (!includeAutomaticEvents) {
                 rawDataQuery.append("AND " + KEY_AUTOMATIC_DATA + " = 0 ");
                 queueCountQuery.append(" AND " + KEY_AUTOMATIC_DATA + " = 0");
             }
 
+            // 加上按创建时间 升序排序 , 限制获取数量为 50
             rawDataQuery.append("ORDER BY " + KEY_CREATED_AT + " ASC LIMIT 50");
             c = db.rawQuery(rawDataQuery.toString(), null);
 
+            // 执行查询数量
             queueCountCursor = db.rawQuery(queueCountQuery.toString(), null);
             queueCountCursor.moveToFirst();
             queueCount = String.valueOf(queueCountCursor.getInt(0));
 
             final JSONArray arr = new JSONArray();
 
+            // 将数据组装成 jsonoArray
             while (c.moveToNext()) {
                 if (c.isLast()) {
                     last_id = c.getString(c.getColumnIndex("_id"));

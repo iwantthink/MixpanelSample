@@ -228,7 +228,10 @@ public class MixpanelAPI {
      * You shouldn't instantiate MixpanelAPI objects directly.
      * Use MixpanelAPI.getInstance to get an instance.
      */
-    MixpanelAPI(Context context, Future<SharedPreferences> referrerPreferences, String token, boolean optOutTrackingDefault) {
+    MixpanelAPI(Context context,
+                Future<SharedPreferences> referrerPreferences,
+                String token,
+                boolean optOutTrackingDefault) {
         this(context,
                 referrerPreferences,
                 token,
@@ -245,6 +248,7 @@ public class MixpanelAPI {
                 String token, MPConfig config, boolean optOutTrackingDefault) {
         mContext = context;
         mToken = token;
+        // 创建 PeopleImpl
         mPeople = new PeopleImpl();
         mConfig = config;
 
@@ -269,28 +273,44 @@ public class MixpanelAPI {
         mDeviceInfo = Collections.unmodifiableMap(deviceInfo);
         //用来记录一些状态 ,event数量 people数量
         mSessionMetadata = new SessionMetadata();
-        //创建ViewCrawler || NoOpUpdatesFromMixpanel
+        // 创建ViewCrawler || NoOpUpdatesFromMixpanel
+        // 如果api<16,或者被禁止使用ViewCrawler 就会创建后者
         mUpdatesFromMixpanel = constructUpdatesFromMixpanel(context, token);
-        // 如果创建了ViewCrawler 那么会将其强转成TrackingDebug,否则即为null
+
+        // ViewTracker 实现了 TrackingDebug 接口,强转过来进行使用
+        // 如果类型是 NoOpUpdatesFromMixpanel 则直接返回null
         mTrackingDebug = constructTrackingDebug();
-        // 创建PersistentIdentity , 其包含多个SP 对象
+
+        // 创建PersistentIdentity , 其包含四个SP 对象,可以直接通过当前对象去获取
         mPersistentIdentity = getPersistentIdentity(context, referrerPreferences, token);
         //获取 Time SP中的内容 ,创建一个Map去接收
         mEventTimings = mPersistentIdentity.getTimeEvents();
-        //创建了一个管理器,用来处理与 本地数据库 和 Mixpanel服务器的通信
+
+        // 创建了一个管理器,用来处理与 本地数据库 和 Mixpanel服务器的通信
+        // 处理 数据发送,读写
         mMessages = getAnalyticsMessages();
 
+
+        // 是否能够默认开始追踪
+        // 默认是false
         if (optOutTrackingDefault) {
             optOutTracking();
         }
 
+        // 回调 , 事先定义的一些逻辑
         mUpdatesListener = constructUpdatesListener();
+
+        // 由 mUpdatesListener , mUpdatesFromMixpanel , 组成一个新的管理类
         mDecideMessages =
-                constructDecideUpdates(token, mUpdatesListener, mUpdatesFromMixpanel);
+                constructDecideUpdates(token,
+                        mUpdatesListener,
+                        mUpdatesFromMixpanel);
+
+
         mConnectIntegrations = new ConnectIntegrations(this, mContext);
 
-        // TODO reading persistent identify immediately forces the lazy load of the preferences, and defeats the
-        // purpose of PersistentIdentity's laziness.
+        // TODO reading persistent identify immediately forces the lazy load of the preferences,
+        // and defeats the purpose of PersistentIdentity's laziness.
         //获取peopleDistinctID ,通常为空
         String decideId = mPersistentIdentity.getPeopleDistinctId();
         //如果peopleDistinctID为空,则改为获取 eventDistinctID
@@ -300,13 +320,21 @@ public class MixpanelAPI {
         mDecideMessages.setDistinctId(decideId);
 
         //判断是否首次加载 ,发送FIRST_OPEN事件
-        if (mPersistentIdentity.isFirstLaunch(MPDbAdapter.getInstance(mContext).getDatabaseFile().exists())) {
+        // DB 仅在 mMessages 发送了消息之后 才会被创建,初始化时不会被创建
+        if (mPersistentIdentity.isFirstLaunch(
+                MPDbAdapter.getInstance(mContext).getDatabaseFile().exists())) {
+            // 发送 首次打开的 事件
+            // isAutomaticEvent  表示该事件是否是自动的
             track(AutomaticEvents.FIRST_OPEN, null, true);
+            // 保存 首次打开的状态
             mPersistentIdentity.setHasLaunched();
         }
 
-        // 加载decide 数据!!!!!! ,往decide 地址去请求数据
+        // 判断是否禁止使用 DecideChecker
         if (!mConfig.getDisableDecideChecker()) {
+            // 加载decide 数据!!!!!! ,往decide 地址去请求数据
+            // 这里应该是首次使用  AnalyticsMessageHandler 去发送数据
+            // 在这里 数据库对象会被创建
             mMessages.installDecideCheck(mDecideMessages);
         }
         //注册声明周期回调
@@ -433,12 +461,14 @@ public class MixpanelAPI {
             final Context appContext = context.getApplicationContext();
             //创建一个FutureTask 用来获取SharedPreferences,其中SP已经提前在线程池中被创建
             if (null == sReferrerPrefs) {
+                // 获取加载SP的Future ,SP已经在线程池中被创建了
+                // 保存这个引用,只需在需要使用SP的地方 调用 call() 即可获取到Sp对象
                 sReferrerPrefs = sPrefsLoader.loadPreferences(context,
                         MPConfig.REFERRER_PREFS_NAME, null);
             }
 
             //优先从缓存中获取 当前token 创建的MiapanelAPI对象
-            //单例
+            //单例的一种表现形式
             Map<Context, MixpanelAPI> instances = sInstanceMap.get(token);
             if (null == instances) {
                 instances = new HashMap<Context, MixpanelAPI>();
@@ -853,6 +883,10 @@ public class MixpanelAPI {
     }
 
     /**
+     * 使用这个方法 去选择性排除一个用户在tracking中
+     * events 或 people 如果没有上传的 会被删除, 可以通过flush()方法在调用此方法之前将数据上传
+     * 此方法还会将任何与用户相关的信息删除
+     * <p>
      * Use this method to opt-out a user from tracking. Events and people updates that haven't been
      * flushed yet will be deleted. Use {@link #flush()} before calling this method if you want
      * to send all the queues to Mixpanel before.
@@ -868,11 +902,12 @@ public class MixpanelAPI {
             getPeople().deleteUser();
             getPeople().clearCharges();
         }
-        // load store sp
+        // 清空 loadstore sp,并更新缓存信息
         mPersistentIdentity.clearPreferences();
         synchronized (mEventTimings) {
-            //清空Time SP
+            // 清空缓存的Time SP 信息
             mEventTimings.clear();
+            // 清空time SP 的信息
             mPersistentIdentity.clearTimeEvents();
         }
         // 清空 LoadReferrer SP
@@ -940,6 +975,7 @@ public class MixpanelAPI {
      * @return true if user has opted out from tracking. Defaults to false.
      */
     public boolean hasOptedOutTracking() {
+        // 默认是返回 false, 如果返回true 就表示当前用户退出事件抓取
         return mPersistentIdentity.getOptOutTracking(mToken);
     }
 
@@ -1540,18 +1576,24 @@ public class MixpanelAPI {
     // Conveniences for testing. These methods should not be called by
     // non-test client code.
 
+    /**
+     * 获取AnalyticsMessage 对象, 单例
+     *
+     * @return
+     */
     /* package */ AnalyticsMessages getAnalyticsMessages() {
         return AnalyticsMessages.getInstance(mContext);
     }
 
     /* package */ PersistentIdentity getPersistentIdentity(final Context context,
-                                                           Future<SharedPreferences> referrerPreferences, final String token) {
+                                                           Future<SharedPreferences> referrerPreferences,
+                                                           final String token) {
         //创建SP创建之后的回调
         final SharedPreferencesLoader.OnPrefsLoadedListener listener =
                 new SharedPreferencesLoader.OnPrefsLoadedListener() {
                     @Override
                     public void onPrefsLoaded(SharedPreferences preferences) {
-                        //
+                        // 取出sp中的 waiting_array
                         final JSONArray records = PersistentIdentity.
                                 waitingPeopleRecordsForSending(preferences);
                         if (null != records) {
@@ -1560,6 +1602,7 @@ public class MixpanelAPI {
                     }
                 };
 
+        // 仅这个 SP 传入的 sp创建回调
         final String prefsName =
                 "com.mixpanel.android.mpmetrics.MixpanelAPI_" + token;
         final Future<SharedPreferences> storedPreferences =
@@ -1575,6 +1618,8 @@ public class MixpanelAPI {
         final Future<SharedPreferences> mixpanelPrefs =
                 sPrefsLoader.loadPreferences(context, mixpanelPrefsName, null);
 
+        // 将四个持有SP的 Futrue 组装成一个对象
+        // 其中一个是从外部传入
         return new PersistentIdentity(referrerPreferences,
                 storedPreferences,
                 timeEventsPrefs,
@@ -1582,10 +1627,19 @@ public class MixpanelAPI {
     }
 
     /* package */ DecideMessages constructDecideUpdates(final String token, final DecideMessages.OnNewResultsListener listener, UpdatesFromMixpanel updatesFromMixpanel) {
-        return new DecideMessages(mContext, token, listener,
-                updatesFromMixpanel, mPersistentIdentity.getSeenCampaignIds());
+        //
+        return new DecideMessages(mContext,
+                token,
+                listener,
+                updatesFromMixpanel,
+                mPersistentIdentity.getSeenCampaignIds());
     }
 
+    /**
+     * Android 版本低于16 不支持,会返回一个 UnsupportedUpdatesListener,其实现基本为空
+     *
+     * @return
+     */
     /* package */ UpdatesListener constructUpdatesListener() {
         if (Build.VERSION.SDK_INT < MPConfig.UI_FEATURES_MIN_API) {
             MPLog.i(LOGTAG, "Notifications are not supported on this Android OS Version");
@@ -1609,12 +1663,16 @@ public class MixpanelAPI {
             MPLog.i(LOGTAG, "SDK version is lower than " + MPConfig.UI_FEATURES_MIN_API +
                     ". Web Configuration, A/B Testing, and Dynamic Tweaks are disabled.");
             return new NoOpUpdatesFromMixpanel(sSharedTweaks);
+            // 判断是否手动禁用 ViewCrawler || 当前项目token 在禁用ViewCrawler的清单中
         } else if (mConfig.getDisableViewCrawler() ||
-                Arrays.asList(mConfig.getDisableViewCrawlerForProjects()).contains(token)) {
+                Arrays.asList(
+                        mConfig.getDisableViewCrawlerForProjects()
+                ).contains(token)) {
             MPLog.i(LOGTAG, "DisableViewCrawler is set to true. " +
                     "Web Configuration, A/B Testing, and Dynamic Tweaks are disabled.");
             return new NoOpUpdatesFromMixpanel(sSharedTweaks);
         } else {
+            //创建ViewCrawler
             return new ViewCrawler(mContext,
                     mToken,
                     this,
@@ -2177,9 +2235,12 @@ public class MixpanelAPI {
     }// PeopleImpl
 
     private interface UpdatesListener extends DecideMessages.OnNewResultsListener {
-        public void addOnMixpanelUpdatesReceivedListener(OnMixpanelUpdatesReceivedListener listener);
 
-        public void removeOnMixpanelUpdatesReceivedListener(OnMixpanelUpdatesReceivedListener listener);
+        void addOnMixpanelUpdatesReceivedListener
+                (OnMixpanelUpdatesReceivedListener listener);
+
+        void removeOnMixpanelUpdatesReceivedListener
+                (OnMixpanelUpdatesReceivedListener listener);
     }
 
     private class UnsupportedUpdatesListener implements UpdatesListener {
@@ -2207,6 +2268,7 @@ public class MixpanelAPI {
     private class SupportedUpdatesListener implements UpdatesListener, Runnable {
         @Override
         public void onNewResults() {
+            // 在单线程的线程池中执行
             mExecutor.execute(this);
         }
 
@@ -2217,6 +2279,7 @@ public class MixpanelAPI {
 
         @Override
         public void addOnMixpanelUpdatesReceivedListener(OnMixpanelUpdatesReceivedListener listener) {
+            // 往set中添加
             mListeners.add(listener);
 
             if (mDecideMessages.hasUpdatesAvailable()) {
@@ -2226,19 +2289,28 @@ public class MixpanelAPI {
 
         @Override
         public void removeOnMixpanelUpdatesReceivedListener(OnMixpanelUpdatesReceivedListener listener) {
+            // 从set中移除
             mListeners.remove(listener);
         }
 
         @Override
         public void run() {
-            // It's possible that by the time this has run the updates we detected are no longer
-            // present, which is ok.
+            // 挨个通知 Listener
+            // It's possible that by the time this has run the updates we
+            // detected are no longer present, which is ok.
             for (final OnMixpanelUpdatesReceivedListener listener : mListeners) {
                 listener.onMixpanelUpdatesReceived();
             }
         }
 
-        private final Set<OnMixpanelUpdatesReceivedListener> mListeners = Collections.newSetFromMap(new ConcurrentHashMap<OnMixpanelUpdatesReceivedListener, Boolean>());
+        /**
+         * 线程安全的set
+         */
+        private final Set<OnMixpanelUpdatesReceivedListener> mListeners =
+                Collections.newSetFromMap(new ConcurrentHashMap<OnMixpanelUpdatesReceivedListener, Boolean>());
+        /**
+         * 单线程线程池
+         */
         private final Executor mExecutor = Executors.newSingleThreadExecutor();
     }
 
@@ -2297,28 +2369,38 @@ public class MixpanelAPI {
         mMessages.postToServer(new AnalyticsMessages.FlushDescription(mToken, false));
     }
 
-    protected void track(String eventName, JSONObject properties, boolean isAutomaticEvent) {
-        if (hasOptedOutTracking() || (isAutomaticEvent && !mDecideMessages.shouldTrackAutomaticEvent())) {
+    protected void track(String eventName,
+                         JSONObject properties,
+                         boolean isAutomaticEvent) {
+        // 1. 当前是否退出追踪
+        // 2. 是否抓取 自动事件
+        if (hasOptedOutTracking() ||
+                (isAutomaticEvent && !mDecideMessages.shouldTrackAutomaticEvent())) {
             return;
         }
 
         final Long eventBegin;
         synchronized (mEventTimings) {
+            // Time Sp 中的信息
             eventBegin = mEventTimings.get(eventName);
+            // 从缓存中移除
             mEventTimings.remove(eventName);
+            // 从sp中移除
             mPersistentIdentity.removeTimeEvent(eventName);
         }
 
         try {
+            // 将数据从SP中读取出来
             final JSONObject messageProps = new JSONObject();
 
-            final Map<String, String> referrerProperties = mPersistentIdentity.getReferrerProperties();
+            final Map<String, String> referrerProperties =
+                    mPersistentIdentity.getReferrerProperties();
             for (final Map.Entry<String, String> entry : referrerProperties.entrySet()) {
                 final String key = entry.getKey();
                 final String value = entry.getValue();
                 messageProps.put(key, value);
             }
-
+            // 往 messageProps 中 添加 mSuperPropertiesCache
             mPersistentIdentity.addSuperPropertiesToObject(messageProps);
 
             // Don't allow super properties or referral properties to override these fields,
@@ -2326,6 +2408,7 @@ public class MixpanelAPI {
             final double timeSecondsDouble = (System.currentTimeMillis()) / 1000.0;
             final long timeSeconds = (long) timeSecondsDouble;
             messageProps.put("time", timeSeconds);
+            // 获取事件唯一id
             messageProps.put("distinct_id", getDistinctId());
 
             if (null != eventBegin) {
@@ -2334,6 +2417,7 @@ public class MixpanelAPI {
                 messageProps.put("$duration", secondsElapsed);
             }
 
+            // 额外的属性
             if (null != properties) {
                 final Iterator<?> propIter = properties.keys();
                 while (propIter.hasNext()) {
@@ -2344,11 +2428,21 @@ public class MixpanelAPI {
                 }
             }
 
+            // 创建一个 bean类 保存 event的各种信息
             final AnalyticsMessages.EventDescription eventDescription =
-                    new AnalyticsMessages.EventDescription(eventName, messageProps,
-                            mToken, isAutomaticEvent, mSessionMetadata.getMetadataForEvent());
+                    new AnalyticsMessages.EventDescription(
+                            eventName,
+                            messageProps,
+                            mToken,
+                            isAutomaticEvent,
+                            mSessionMetadata.getMetadataForEvent());
+
+            // 通过 AnalyticsMessageHandler 去将这个事件 保存到 数据库中
+            // 后续的发送什么的 是自动的
             mMessages.eventsMessage(eventDescription);
 
+            // 如果 当前 app 与 web页面已经建立连接...
+            // 那么就会往web 页面 发送 捕获到了 eventname 事件的 信息
             if (null != mTrackingDebug) {
                 mTrackingDebug.reportTrack(eventName);
             }
@@ -2381,7 +2475,8 @@ public class MixpanelAPI {
         for (int i = 0; i < records.length(); i++) {
             try {
                 final JSONObject message = records.getJSONObject(i);
-                mMessages.peopleMessage(new AnalyticsMessages.PeopleDescription(message, mToken));
+                mMessages.peopleMessage(
+                        new AnalyticsMessages.PeopleDescription(message, mToken));
             } catch (final JSONException e) {
                 MPLog.e(LOGTAG, "Malformed people record stored pending identity, will not send it.", e);
             }
@@ -2465,8 +2560,14 @@ public class MixpanelAPI {
      * 正常情况下就是ViewCrawler
      */
     private final UpdatesFromMixpanel mUpdatesFromMixpanel;
+    /**
+     * 包含三个SP
+     */
     private final PersistentIdentity mPersistentIdentity;
     private final UpdatesListener mUpdatesListener;
+    /**
+     * 由 ViewCrawler  进行实现
+     */
     private final TrackingDebug mTrackingDebug;
     private final ConnectIntegrations mConnectIntegrations;
     private final DecideMessages mDecideMessages;
@@ -2484,7 +2585,7 @@ public class MixpanelAPI {
      */
     private static final Map<String, Map<Context, MixpanelAPI>> sInstanceMap = new HashMap<String, Map<Context, MixpanelAPI>>();
     /**
-     * SP加载器
+     * SP加载器,已经通过线程池将SharedPreference 创建
      */
     private static final SharedPreferencesLoader sPrefsLoader = new SharedPreferencesLoader();
     private static final Tweaks sSharedTweaks = new Tweaks();

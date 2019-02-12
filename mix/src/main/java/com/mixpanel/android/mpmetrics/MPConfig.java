@@ -322,6 +322,7 @@ public class MPConfig {
     }
 
     // Throw away records that are older than this in milliseconds. Should be below the server side age limit for events.
+    // 数据过期时间
     public long getDataExpiration() {
         return mDataExpiration;
     }
@@ -370,7 +371,8 @@ public class MPConfig {
     }
 
     public void setMixpanelEventsEndpoint() {
-        setEventsEndpoint(MPConstants.URL.EVENT + (getUseIpAddressForGeolocation() ? "1" : "0"));
+        setEventsEndpoint(MPConstants.URL.EVENT +
+                (getUseIpAddressForGeolocation() ? "1" : "0"));
     }
 
     public void setEventsEndpoint(String eventsEndpoint) {
@@ -423,7 +425,7 @@ public class MPConfig {
 
     /**
      * 获取是否禁止decideChecker
-     *
+     * 默认false
      * @return
      */
     public boolean getDisableDecideChecker() {
@@ -477,6 +479,19 @@ public class MPConfig {
     // As far as I can tell, the original package name is lost in the build
     // process in these cases, and must be specified by the developer using
     // MPConfig meta-data.
+
+    /**
+     * 在Android 使用Gradle 进行编译之后,存在俩个概念
+     * 1. build.gradle中的 application id
+     * 2. AndroidManifest.xml 中的 package
+     * <p>
+     * - package 与 生成的R类的名称有关,所以如果清单文件中的package属性被修改了,
+     *      那么就需要开发者手动将这个属性告诉sdk,这样才能通过package获取资源信息
+     *
+     * - 实际上mContext.getPackageName()使用的是application id
+     *
+     * @return
+     */
     public String getResourcePackageName() {
         return mResourcePackageName;
     }
@@ -550,6 +565,9 @@ public class MPConfig {
      * 默认值1分钟
      */
     private final int mFlushInterval;
+    /**
+     * 数据过期时间
+     */
     private final long mDataExpiration;
     private final int mMinimumDatabaseLimit;
     private final boolean mTestMode;
@@ -571,6 +589,9 @@ public class MPConfig {
      * 默认为True
      */
     private final boolean mAutoShowMixpanelUpdates;
+    /**
+     * 无埋点控制页面的地址
+     */
     private final String mEditorUrl;
     private final String mResourcePackageName;
     private final boolean mDisableDecideChecker;
@@ -585,6 +606,10 @@ public class MPConfig {
      * session的超时时间 ,默认永不超时
      */
     private final int mSessionTimeoutDuration;
+    /**
+     * 是否使用ip地址获取地理位置
+     * 默认true
+     */
     private final boolean mUseIpAddressForGeolocation;
     private final int mNotificationChannelImportance;
     private final String mNotificationChannelId;

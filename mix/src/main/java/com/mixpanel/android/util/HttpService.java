@@ -47,6 +47,7 @@ public class HttpService implements RemoteService {
                             apiMixpanelInet.isAnyLocalAddress() ||
                             decideMixpanelInet.isLoopbackAddress() ||
                             decideMixpanelInet.isAnyLocalAddress();
+                    // 存在上述任何一点 就表示请求无法使用
                     if (sIsMixpanelBlocked) {
                         MPLog.v(LOGTAG, "AdBlocker is enabled." +
                                 " Won't be able to use Mixpanel services.");
@@ -59,11 +60,20 @@ public class HttpService implements RemoteService {
         t.start();
     }
 
+    /**
+     * 判断是否联网
+     *
+     * @param context
+     * @param offlineMode
+     * @return
+     */
     @SuppressLint("MissingPermission")
     @SuppressWarnings("MissingPermission")
     @Override
     public boolean isOnline(Context context, OfflineMode offlineMode) {
+        // 判断 AdBlocker 是否启用
         if (sIsMixpanelBlocked) return false;
+        // 是否处于 离线模式
         if (onOfflineMode(offlineMode)) return false;
 
         boolean isOnline;
@@ -75,6 +85,7 @@ public class HttpService implements RemoteService {
                 isOnline = true;
                 MPLog.v(LOGTAG, "A default network has not been set so we cannot be certain whether we are offline");
             } else {
+                // 判断是否已经连接 或 正在连接 网络
                 isOnline = netInfo.isConnectedOrConnecting();
                 MPLog.v(LOGTAG, "ConnectivityManager says we " + (isOnline ? "are" : "are not") + " online");
             }
@@ -85,6 +96,12 @@ public class HttpService implements RemoteService {
         return isOnline;
     }
 
+    /**
+     * 是否处于 离线模式
+     *
+     * @param offlineMode
+     * @return
+     */
     private boolean onOfflineMode(OfflineMode offlineMode) {
         boolean onOfflineMode;
 
@@ -123,6 +140,7 @@ public class HttpService implements RemoteService {
                 final URL url = new URL(endpointUrl);
                 connection = (HttpURLConnection) url.openConnection();
                 if (null != socketFactory && connection instanceof HttpsURLConnection) {
+                    //TODO 待分析, 为什么这里需要设置 SocketFactory
                     ((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
                 }
 
@@ -147,6 +165,7 @@ public class HttpService implements RemoteService {
                     out.close();
                     out = null;
                 }
+                // 服务器返回的流
                 in = connection.getInputStream();
                 response = slurp(in);
                 in.close();
@@ -156,7 +175,8 @@ public class HttpService implements RemoteService {
                 MPLog.d(LOGTAG, "Failure to connect, likely caused by a known issue with Android lib. Retrying.");
                 retries = retries + 1;
             } catch (final IOException e) {
-                if (connection.getResponseCode() >= MIN_UNAVAILABLE_HTTP_RESPONSE_CODE && connection.getResponseCode() <= MAX_UNAVAILABLE_HTTP_RESPONSE_CODE) {
+                if (connection.getResponseCode() >= MIN_UNAVAILABLE_HTTP_RESPONSE_CODE
+                        && connection.getResponseCode() <= MAX_UNAVAILABLE_HTTP_RESPONSE_CODE) {
                     throw new ServiceUnavailableException("Service Unavailable", connection.getHeaderField("Retry-After"));
                 } else {
                     throw e;
@@ -190,6 +210,13 @@ public class HttpService implements RemoteService {
         return response;
     }
 
+    /**
+     * 解析流->字节
+     *
+     * @param inputStream
+     * @return
+     * @throws IOException
+     */
     private static byte[] slurp(final InputStream inputStream)
             throws IOException {
         final ByteArrayOutputStream buffer = new ByteArrayOutputStream();

@@ -25,7 +25,7 @@ class SharedPreferencesLoader {
     }
 
     /**
-     * 提前通过线程池创建SP, 之后使用FutrureTask 直接获取
+     * 提前在线程池中创建SP, 之后使用FutureTask 直接获取
      *
      * @param context
      * @param name
@@ -56,7 +56,9 @@ class SharedPreferencesLoader {
 
         @Override
         public SharedPreferences call() {
+            // 创建了指定的sp
             final SharedPreferences ret = mContext.getSharedPreferences(mPrefsName, Context.MODE_PRIVATE);
+            // 调用回调函数
             if (null != mListener) {
                 mListener.onPrefsLoaded(ret);
             }

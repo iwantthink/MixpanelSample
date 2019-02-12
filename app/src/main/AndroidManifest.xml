@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.hmt.mixpanelsample">
 
-
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.BLUETOOTH"/>
@@ -12,7 +11,6 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 
-
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -20,21 +18,26 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-
+        <meta-data
+            android:name="HMT_APPKEY"
+            android:value="UA-irstest-android"/>
+        <meta-data
+            android:name="HMT_CHANNEL"
+            android:value="CHANNEL_ID"/>
+        <meta-data
+            android:name="HMT_TRACKEDURL"
+            android:value="*"/>
         <meta-data
             android:name="com.mixpanel.android.MPConfig.TestMode"
-            android:value="true"
-            >
+            android:value="true">
         </meta-data>
-
         <meta-data
             android:name="com.mixpanel.android.MPConfig.EnableDebugLogging"
-            android:value="true"
-            ></meta-data>
+            android:value="true"/>
 
-        <activity android:name=".MainActivity"
-            android:screenOrientation="portrait"
-            >
+        <activity
+            android:name=".MainActivity"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
 
@@ -43,6 +46,22 @@
         </activity>
         <activity android:name=".SeconedActivity">
         </activity>
+        <activity android:name=".TestEListView"/>
+
+        <service
+            android:name=".KeepService"
+            android:enabled="true"
+            android:exported="true"
+            android:process=":Test">
+            <intent-filter>
+                <action android:name="com.hmt.mixpanelsample.KeepService"/>
+            </intent-filter>
+        </service>
+        <service
+            android:name=".GrayInnerService"
+            android:enabled="true"
+            android:exported="true">
+        </service>
     </application>
 
 </manifest>

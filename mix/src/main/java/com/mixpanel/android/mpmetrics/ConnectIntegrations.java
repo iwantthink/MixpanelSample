@@ -36,13 +36,15 @@ import java.util.Set;
         }
     }
 
+    @SuppressWarnings("unchecked")
     private synchronized void setUrbanAirshipPeopleProp() {
         String urbanAirshipClassName = "com.urbanairship.UAirship";
         try {
             Class urbanAirshipClass = Class.forName(urbanAirshipClassName);
-            Object sharedUAirship = urbanAirshipClass.getMethod("shared", new Class[]{}).invoke(null);
+            Object sharedUAirship =
+                    urbanAirshipClass.getMethod("shared", new Class[]{}).invoke(null);
             Object pushManager = sharedUAirship.getClass().getMethod("getPushManager", new Class[]{}).invoke(sharedUAirship);
-            String channelID = (String)pushManager.getClass().getMethod("getChannelId", new Class[]{}).invoke(pushManager);
+            String channelID = (String) pushManager.getClass().getMethod("getChannelId", new Class[]{}).invoke(pushManager);
             if (channelID != null && !channelID.isEmpty()) {
                 mUrbanAirshipRetries = 0;
                 if (mSavedUrbanAirshipChannelID == null || !mSavedUrbanAirshipChannelID.equals(channelID)) {
@@ -72,6 +74,7 @@ import java.util.Set;
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void setBrazePeopleProp() {
         String urbanAirshipClassName = "com.appboy.Appboy";
         try {

@@ -1,8 +1,5 @@
 package com.mixpanel.android.mpmetrics;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
@@ -21,13 +18,18 @@ import android.view.WindowManager;
 
 import com.mixpanel.android.util.MPLog;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
 /**
+ * 获取App 名称, 版本,版本名称,是否拥有特定feature,屏幕信息
  * Abstracts away possibly non-present system information classes,
  * and handles permission-dependent queries for default system information.
  */
 /* package */ class SystemInformation {
 
-    /* package */ static SystemInformation getInstance(Context context) {
+    /* package */
+    static SystemInformation getInstance(Context context) {
         synchronized (sInstanceLock) {
             if (null == sInstance) {
                 final Context appContext = context.getApplicationContext();
@@ -58,8 +60,13 @@ import com.mixpanel.android.util.MPLog;
 
         mAppVersionName = foundAppVersionName;
         mAppVersionCode = foundAppVersionCode;
-        mAppName = appNameStringId == 0 ? applicationInfo.nonLocalizedLabel == null ? "Misc" : applicationInfo.nonLocalizedLabel.toString() : context.getString(appNameStringId);
+        // 获取App名称
+        mAppName = appNameStringId == 0 ?
+                applicationInfo.nonLocalizedLabel == null ? "Misc" : applicationInfo.nonLocalizedLabel.toString()
+                : context.getString(appNameStringId);
 
+
+        // 考虑兼容性问题, 在新版本上 可能这些api已经被移除,所以使用反射来调用指定方法
         // We can't count on these features being available, since we need to
         // run on old devices. Thus, the reflection fandango below...
         Class<? extends PackageManager> packageManagerClass = packageManager.getClass();
@@ -71,6 +78,7 @@ import com.mixpanel.android.util.MPLog;
             // Nothing, this is an expected outcome
         }
 
+        // 判断是否拥有feature  NFC 和 Telephony(电话硬件功能)
         Boolean foundNFC = null;
         Boolean foundTelephony = null;
         if (null != hasSystemFeatureMethod) {
@@ -86,44 +94,56 @@ import com.mixpanel.android.util.MPLog;
 
         mHasNFC = foundNFC;
         mHasTelephony = foundTelephony;
+        //当前屏幕信息
         mDisplayMetrics = new DisplayMetrics();
-
         Display display = ((WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
         display.getMetrics(mDisplayMetrics);
     }
 
-    public String getAppVersionName() { return mAppVersionName; }
+    public String getAppVersionName() {
+        return mAppVersionName;
+    }
 
-    public Integer getAppVersionCode() { return mAppVersionCode; }
+    public Integer getAppVersionCode() {
+        return mAppVersionCode;
+    }
 
-    public String getAppName() { return mAppName; }
+    public String getAppName() {
+        return mAppName;
+    }
 
-    public boolean hasNFC() { return mHasNFC; }
+    public boolean hasNFC() {
+        return mHasNFC;
+    }
 
-    public boolean hasTelephony() { return mHasTelephony; }
+    public boolean hasTelephony() {
+        return mHasTelephony;
+    }
 
-    public DisplayMetrics getDisplayMetrics() { return mDisplayMetrics; }
+    public DisplayMetrics getDisplayMetrics() {
+        return mDisplayMetrics;
+    }
 
     public String getPhoneRadioType() {
         String ret = null;
 
         TelephonyManager telephonyManager = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
         if (null != telephonyManager) {
-            switch(telephonyManager.getPhoneType()) {
-            case 0x00000000: // TelephonyManager.PHONE_TYPE_NONE
-                ret = "none";
-                break;
-            case 0x00000001: // TelephonyManager.PHONE_TYPE_GSM
-                ret = "gsm";
-                break;
-            case 0x00000002: // TelephonyManager.PHONE_TYPE_CDMA
-                ret = "cdma";
-                break;
-            case 0x00000003: // TelephonyManager.PHONE_TYPE_SIP
-                ret = "sip";
-                break;
-            default:
-                ret = null;
+            switch (telephonyManager.getPhoneType()) {
+                case 0x00000000: // TelephonyManager.PHONE_TYPE_NONE
+                    ret = "none";
+                    break;
+                case 0x00000001: // TelephonyManager.PHONE_TYPE_GSM
+                    ret = "gsm";
+                    break;
+                case 0x00000002: // TelephonyManager.PHONE_TYPE_CDMA
+                    ret = "cdma";
+                    break;
+                case 0x00000003: // TelephonyManager.PHONE_TYPE_SIP
+                    ret = "sip";
+                    break;
+                default:
+                    ret = null;
             }
         }
 
@@ -183,10 +203,10 @@ import com.mixpanel.android.util.MPLog;
 
     public String getBluetoothVersion() {
         String bluetoothVersion = "none";
-        if(android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2 &&
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2 &&
                 mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             bluetoothVersion = "ble";
-        } else if(mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
+        } else if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
             bluetoothVersion = "classic";
         }
         return bluetoothVersion;
