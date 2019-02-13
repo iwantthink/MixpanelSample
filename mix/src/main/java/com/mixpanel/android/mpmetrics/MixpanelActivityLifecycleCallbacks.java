@@ -19,7 +19,7 @@ import java.text.NumberFormat;
 import java.util.Locale;
 
 @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
-/* package */ class MixpanelActivityLifecycleCallbacks implements Application.ActivityLifecycleCallbacks {
+        /* package */ class MixpanelActivityLifecycleCallbacks implements Application.ActivityLifecycleCallbacks {
     /**
      * 在主线程中执行的Handler
      */
@@ -46,21 +46,49 @@ import java.util.Locale;
     }
 
     @Override
+    public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+    }
+
+    @Override
     public void onActivityStarted(Activity activity) {
         //收集Intent中的内容,如果存在内容会发送app_open 事件
         trackCampaignOpenedIfNeeded(activity.getIntent());
         // SDK-VERSION > 16 &&  默认True
         if (android.os.Build.VERSION.SDK_INT >= MPConfig.UI_FEATURES_MIN_API
                 && mConfig.getAutoShowMixpanelUpdates()) {
+            // 展示 俩种不同类型的 notification
             mMpInstance.getPeople().showNotificationIfAvailable(activity);
         }
-        //给DecorView设置触摸监听事件,AB测试
+
+        //给DecorView设置触摸监听事件,用于开启AB测试
         new GestureTracker(mMpInstance, activity);
     }
 
     @Override
-    public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+    public void onActivityResumed(Activity activity) {
+        // SDK-VERSION > 16 &&  默认True
+        if (android.os.Build.VERSION.SDK_INT >= MPConfig.UI_FEATURES_MIN_API
+                && mConfig.getAutoShowMixpanelUpdates()) {
+            // 从mDecideMessages获取variant,保存到 ViewCrawler
+            mMpInstance.getPeople().joinExperimentIfAvailable();
+        }
+        mPaused = false;
+        //是否在后台  false   1.  false   2. true
+        boolean wasBackground = !mIsForeground;
+        mIsForeground = true;
+        //check 非空 则移除
+        if (check != null) {
+            mHandler.removeCallbacks(check);
+        }
+        // 如果当前处于后台
+        if (wasBackground) {
+            // App is in foreground now
+            sStartSessionTime = (double) System.currentTimeMillis();
+            // 必须是 之前处于后台, 后来处于前台 才需要通知Mp实例 当前切换到前台了
+            mMpInstance.onForeground();
+        }
     }
+
 
     @Override
     public void onActivityPaused(final Activity activity) {
@@ -79,8 +107,10 @@ import java.util.Locale;
                     //置false
                     mIsForeground = false;
                     try {
-                        // 初始化 到 pause的时间
-                        double sessionLength = System.currentTimeMillis() - sStartSessionTime;
+                        // 第一次是初始化 到 pause的时间
+                        // 接下来就是 resume 到pause 的时间
+                        double sessionLength =
+                                System.currentTimeMillis() - sStartSessionTime;
                         //初始化到pause的时间 > 10s
                         //
                         if (sessionLength >= mConfig.getMinimumSessionDuration() &&
@@ -91,6 +121,7 @@ import java.util.Locale;
                             String sessionLengthString = nf.format((System.currentTimeMillis() - sStartSessionTime) / 1000);
                             JSONObject sessionProperties = new JSONObject();
                             sessionProperties.put(AutomaticEvents.SESSION_LENGTH, sessionLengthString);
+                            // 发送session
                             mMpInstance.track(AutomaticEvents.SESSION, sessionProperties, true);
                         }
                     } catch (JSONException e) {
@@ -102,40 +133,17 @@ import java.util.Locale;
         }, CHECK_DELAY);
     }
 
+
+    @Override
+    public void onActivityStopped(Activity activity) {
+    }
+
     @Override
     public void onActivityDestroyed(Activity activity) {
     }
 
     @Override
     public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
-    }
-
-    @Override
-    public void onActivityResumed(Activity activity) {
-        // SDK-VERSION > 16 &&  默认True
-        if (android.os.Build.VERSION.SDK_INT >= MPConfig.UI_FEATURES_MIN_API
-                && mConfig.getAutoShowMixpanelUpdates()) {
-            // 从mDecideMessages获取variant,保存到 ViewCrawler
-            mMpInstance.getPeople().joinExperimentIfAvailable();
-        }
-        mPaused = false;
-        //是否在后台  false
-        boolean wasBackground = !mIsForeground;
-        mIsForeground = true;
-        //check 非空 则移除
-        if (check != null) {
-            mHandler.removeCallbacks(check);
-        }
-        // 如果当前处于后台
-        if (wasBackground) {
-            // App is in foreground now
-            sStartSessionTime = (double) System.currentTimeMillis();
-            mMpInstance.onForeground();
-        }
-    }
-
-    @Override
-    public void onActivityStopped(Activity activity) {
     }
 
     protected boolean isInForeground() {
@@ -148,7 +156,9 @@ import java.util.Locale;
         }
 
         try {
-            if (intent.hasExtra("mp_campaign_id") && intent.hasExtra("mp_message_id")) {
+            if (intent.hasExtra("mp_campaign_id") &&
+                    intent.hasExtra("mp_message_id")) {
+
                 String campaignId = intent.getStringExtra("mp_campaign_id");
                 String messageId = intent.getStringExtra("mp_message_id");
                 String extraLogData = intent.getStringExtra("mp");

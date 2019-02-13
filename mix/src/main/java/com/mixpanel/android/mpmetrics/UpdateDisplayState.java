@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * This is a class intended for internal use by the library.
  * Users of the library should not interact with it directly.
- *
+ * <p>
  * The interface to this class may change or disappear from release to release.
  */
 @TargetApi(MPConfig.UI_FEATURES_MIN_API)
@@ -27,7 +27,8 @@ public class UpdateDisplayState implements Parcelable {
      */
     public static abstract class DisplayState implements Parcelable {
 
-        private DisplayState() {}
+        private DisplayState() {
+        }
 
         public abstract String getType();
 
@@ -183,12 +184,14 @@ public class UpdateDisplayState implements Parcelable {
         private final HashMap<Integer, String> mMap;
     }
 
-    /* package */ static ReentrantLock getLockObject() {
+    /* package */
+    static ReentrantLock getLockObject() {
         // Returns an unlocked lock object. Does *not* acquire a lock!
         return sUpdateDisplayLock;
     }
 
-    /* package */ static boolean hasCurrentProposal() {
+    /* package */
+    static boolean hasCurrentProposal() {
         // Almost certainly a race condition of caller doesn't hold our lock object.
         if (!sUpdateDisplayLock.isHeldByCurrentThread()) throw new AssertionError();
 
@@ -204,11 +207,12 @@ public class UpdateDisplayState implements Parcelable {
     }
 
     // Returned id should either be -1, or POSITIVE (nonzero). Don't return zero, please.
-    /* package */ static int proposeDisplay(final DisplayState state, final String distinctId, final String token) {
+    /* package */
+    static int proposeDisplay(final DisplayState state, final String distinctId, final String token) {
         int ret = -1;
 
         if (!sUpdateDisplayLock.isHeldByCurrentThread()) throw new AssertionError();
-        if (! hasCurrentProposal()) {
+        if (!hasCurrentProposal()) {
             sUpdateDisplayLockMillis = System.currentTimeMillis();
             sUpdateDisplayState = new UpdateDisplayState(state, distinctId, token);
             sNextIntentId++;
@@ -291,7 +295,7 @@ public class UpdateDisplayState implements Parcelable {
     }
 
     public String getDistinctId() {
-       return mDistinctId;
+        return mDistinctId;
     }
 
     public String getToken() {

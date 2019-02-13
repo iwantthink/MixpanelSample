@@ -253,6 +253,9 @@ import javax.net.ssl.SSLSocketFactory;
         private final boolean checkDecide;
     }
 
+    /**
+     * 保存了token的 bean类
+     */
     static class MixpanelDescription {
         public MixpanelDescription(String token) {
             this.mToken = token;
@@ -406,9 +409,13 @@ import javax.net.ssl.SSLSocketFactory;
                     } else if (msg.what == FLUSH_QUEUE) {
                         //将数据库中的数据统统出库上传
                         logAboutMessageToMixpanel("Flushing queue due to scheduled or forced flush");
+                        // 更新刷新频率信息
                         updateFlushFrequency();
+                        // token信息
                         token = (String) msg.obj;
+                        //  这个需要查看 发送FLUSH_QUEUE 消息的地方
                         boolean shouldCheckDecide = msg.arg1 == 1 ? true : false;
+
                         sendAllData(mDbAdapter, token);
                         if (shouldCheckDecide && SystemClock.elapsedRealtime() >= mDecideRetryAfter) {
                             try {
@@ -420,11 +427,15 @@ import javax.net.ssl.SSLSocketFactory;
                     } else if (msg.what == INSTALL_DECIDE_CHECK) {
                         logAboutMessageToMixpanel("Installing a check for in-app notifications");
                         final DecideMessages check = (DecideMessages) msg.obj;
+                        // 往 mChecks 中添加DecideMessages
+                        // key= token , obj = DecideMessages
                         mDecideChecker.addDecideCheck(check);
-                        //重试的时间
+                        //超过重试的时间
                         if (SystemClock.elapsedRealtime() >= mDecideRetryAfter) {
                             try {
-                                mDecideChecker.runDecideCheck(check.getToken(), getPoster());
+                                mDecideChecker.runDecideCheck(
+                                        check.getToken(),
+                                        getPoster());
                             } catch (RemoteService.ServiceUnavailableException e) {
                                 mDecideRetryAfter = SystemClock.elapsedRealtime() +
                                         e.getRetryAfter() * 1000;
@@ -788,6 +799,9 @@ import javax.net.ssl.SSLSocketFactory;
             }
 
             private MPDbAdapter mDbAdapter;
+            /**
+             * 会保存 key= token , obj = DecideMessages
+             */
             private final DecideChecker mDecideChecker;
             private final long mFlushInterval;
             /**
@@ -807,17 +821,21 @@ import javax.net.ssl.SSLSocketFactory;
             // 刷新次数+1
             final long newFlushCount = mFlushCount + 1;
 
-            // 判断是否是第一次刷新, 如果不是 则需要进行刷新间隔时间的判断
+            // 判断是否是第一次刷新, 如果>0则不是 则需要进行刷新间隔时间的判断
             if (mLastFlushTime > 0) {
                 // 刷新间隔
                 final long flushInterval = now - mLastFlushTime;
                 // 刷新间隔+ 刷新次数* 平均刷新频率
-                final long totalFlushTime = flushInterval + (mAveFlushFrequency * mFlushCount);
+                //  1.  = flushInterval
+                //  2.  = flushInterval + lastFlushInterval*1
+                final long totalFlushTime = flushInterval +
+                        (mAveFlushFrequency * mFlushCount);
                 // 总刷新时间 / 刷新次数 =  平均刷新时间
                 mAveFlushFrequency = totalFlushTime / newFlushCount;
 
                 final long seconds = mAveFlushFrequency / 1000;
-                logAboutMessageToMixpanel("Average send frequency approximately " + seconds + " seconds.");
+                logAboutMessageToMixpanel("Average send frequency approximately " +
+                        seconds + " seconds.");
             }
 
             // 记录当前的刷新时间, 为下一次 判断做准备
@@ -832,6 +850,9 @@ import javax.net.ssl.SSLSocketFactory;
          */
         private Handler mHandler;
         private long mFlushCount = 0;
+        /**
+         * 平均刷新时间
+         */
         private long mAveFlushFrequency = 0;
         private long mLastFlushTime = -1;
         private SystemInformation mSystemInformation;

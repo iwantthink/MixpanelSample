@@ -74,6 +74,13 @@ public class ImageStore {
         }
     }
 
+    /**
+     * 从网络下载图片至本地
+     *
+     * @param url
+     * @return
+     * @throws CantGetImageException
+     */
     public File getImageFile(String url) throws CantGetImageException {
         final File file = storedFile(url);
         byte[] bytes = null;
@@ -89,6 +96,7 @@ public class ImageStore {
             }
 
             if (null != bytes) {
+                // 图片不能过大
                 if (null != file && bytes.length < MAX_BITMAP_SIZE) {
                     OutputStream out = null;
                     try {
@@ -115,27 +123,40 @@ public class ImageStore {
     }
 
     public Bitmap getImage(String url) throws CantGetImageException {
+        // 从缓存中获取图片
         Bitmap cachedBitmap = getBitmapFromMemCache(url);
-
+        // 缓存中没有
         if (cachedBitmap == null) {
+            //  下载图片至本地
             final File imageFile = getImageFile(url);
+            // 加载至内存中
             cachedBitmap = decodeImage(imageFile);
+            // 添加到LRUCache
             addBitmapToMemoryCache(url, cachedBitmap);
         }
 
         return cachedBitmap;
     }
 
+    /**
+     * 从本地加载图片到内存中
+     *
+     * @param file
+     * @return
+     * @throws CantGetImageException
+     */
     private static Bitmap decodeImage(File file) throws CantGetImageException {
         BitmapFactory.Options option = new BitmapFactory.Options();
         option.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(file.getAbsolutePath(), option);
         float imageSize = (float) option.outHeight * option.outWidth;
+        // 图片大小过大,内存不足
         if (imageSize > getAvailableMemory()) {
             throw new CantGetImageException("Do not have enough memory for the image");
         }
-
+        // 解析
         Bitmap bitmap = BitmapFactory.decodeFile(file.getAbsolutePath());
+        // 无法打开..或被删除了...
         if (null == bitmap) {
             final boolean ignored = file.delete();
             throw new CantGetImageException("Bitmap on disk can't be opened or was corrupt");

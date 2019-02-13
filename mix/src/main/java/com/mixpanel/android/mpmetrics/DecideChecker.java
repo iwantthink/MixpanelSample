@@ -34,6 +34,9 @@ import javax.net.ssl.SSLSocketFactory;
 
     private final MPConfig mConfig;
     private final Context mContext;
+    /**
+     * token - DecideMessages
+     */
     private final Map<String, DecideMessages> mChecks;
     private final ImageStore mImageStore;
     private final SystemInformation mSystemInformation;
@@ -46,7 +49,10 @@ import javax.net.ssl.SSLSocketFactory;
     private static final String AUTOMATIC_EVENTS = "automatic_events";
     private static final String INTEGRATIONS = "integrations";
 
-    /* package */ static class Result {
+    /**
+     * 保存 decide 返回的信息
+     */
+    static class Result {
         public Result() {
             notifications = new ArrayList<>();
             eventBindings = EMPTY_JSON_ARRAY;
@@ -82,12 +88,18 @@ import javax.net.ssl.SSLSocketFactory;
 
     public void runDecideCheck(final String token,
                                final RemoteService poster) throws RemoteService.ServiceUnavailableException {
+        // 获取token 对应的 DecideMessages
+        // DecideMessages 在INSTALL_DECIDE_CHECK 中被添加
         DecideMessages updates = mChecks.get(token);
         if (updates != null) {
+            // event 或 people
             final String distinctId = updates.getDistinctId();
             try {
-                //从服务器获取 decide 信息
-                final Result result = runDecideCheck(updates.getToken(), distinctId, poster);
+                //从服务器获取 decide 信息,并解析完成,得到Result对象
+                final Result result = runDecideCheck(
+                        updates.getToken(),
+                        distinctId,
+                        poster);
                 if (result != null) {
                     //处理从服务器获取到的decide信息
                     updates.reportResults(result.notifications,
@@ -122,16 +134,18 @@ import javax.net.ssl.SSLSocketFactory;
                                   final String distinctId,
                                   final RemoteService poster)
             throws RemoteService.ServiceUnavailableException, UnintelligibleMessageException {
+        // 从 线上的decide 获取信息 具体信息待分析
         final String responseString = getDecideResponseFromServer(token, distinctId, poster);
 
         MPLog.v(LOGTAG, "Mixpanel decide server response was:\n" + responseString);
 
         Result parsedResult = null;
         if (responseString != null) {
-            //解析
+            //解析json 并返回 Result 对象
             parsedResult = parseDecideResponse(responseString);
 
-            final Iterator<InAppNotification> notificationIterator = parsedResult.notifications.iterator();
+            final Iterator<InAppNotification> notificationIterator =
+                    parsedResult.notifications.iterator();
             while (notificationIterator.hasNext()) {
                 final InAppNotification notification = notificationIterator.next();
                 final Bitmap image = getNotificationImage(notification, mContext);
@@ -140,6 +154,7 @@ import javax.net.ssl.SSLSocketFactory;
                             ", will not show the notification.");
                     notificationIterator.remove();
                 } else {
+                    // 保存到result中
                     notification.setImage(image);
                 }
             }
@@ -148,7 +163,16 @@ import javax.net.ssl.SSLSocketFactory;
         return parsedResult;
     }// runDecideCheck
 
-    /* package */
+    /**
+     * 解析从线上获取的decide 信息
+     * <p>
+     * 主要内容有五类  notification,event_bindings,variants,automatic_events,integration
+     * 会解析然后存放到 Result 对象中返回
+     *
+     * @param responseString
+     * @return
+     * @throws UnintelligibleMessageException
+     */
     static Result parseDecideResponse(String responseString)
             throws UnintelligibleMessageException {
         JSONObject response;
@@ -171,17 +195,23 @@ import javax.net.ssl.SSLSocketFactory;
         }
 
         if (null != notifications) {
-            final int notificationsToRead = Math.min(notifications.length(), MPConfig.MAX_NOTIFICATION_CACHE_COUNT);
+            final int notificationsToRead = Math.min(notifications.length(),
+                    MPConfig.MAX_NOTIFICATION_CACHE_COUNT);
             for (int i = 0; i < notificationsToRead; i++) {
                 try {
                     final JSONObject notificationJson = notifications.getJSONObject(i);
+                    // 获取notification的类型
                     final String notificationType = notificationJson.getString("type");
 
-                    if (notificationType.equalsIgnoreCase("takeover")) {
-                        final TakeoverInAppNotification notification = new TakeoverInAppNotification(notificationJson);
+                    if (notificationType.
+                            equalsIgnoreCase("takeover")) {
+                        final TakeoverInAppNotification notification =
+                                new TakeoverInAppNotification(notificationJson);
                         ret.notifications.add(notification);
-                    } else if (notificationType.equalsIgnoreCase("mini")) {
-                        final MiniInAppNotification notification = new MiniInAppNotification(notificationJson);
+                    } else if (notificationType.
+                            equalsIgnoreCase("mini")) {
+                        final MiniInAppNotification notification =
+                                new MiniInAppNotification(notificationJson);
                         ret.notifications.add(notification);
                     }
                 } catch (final JSONException e) {
@@ -245,7 +275,9 @@ import javax.net.ssl.SSLSocketFactory;
         final String escapedToken;
         final String escapedId;
         try {
+            // 对token 进行url 编码
             escapedToken = URLEncoder.encode(unescapedToken, "utf-8");
+            // 对distinctID 进行url编码
             if (null != unescapedDistinctId) {
                 escapedId = URLEncoder.encode(unescapedDistinctId, "utf-8");
             } else {
@@ -276,8 +308,10 @@ import javax.net.ssl.SSLSocketFactory;
         } catch (Exception e) {
             MPLog.e(LOGTAG, "Exception constructing properties JSON", e.getCause());
         }
-
+        // 查询语句
         final String checkQuery = queryBuilder.toString();
+        // 拼接查询语句
+        // decide 请求地址,通常使用默认值
         final String url = mConfig.getDecideEndpoint() + checkQuery;
 
         MPLog.v(LOGTAG, "Querying decide server, url: " + url);
@@ -299,9 +333,11 @@ import javax.net.ssl.SSLSocketFactory;
 
         final WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         final Display display = wm.getDefaultDisplay();
+        // 使用兼容性的方式获取 width
         final int displayWidth = getDisplayWidth(display);
 
-        if (notification.getType() == InAppNotification.Type.TAKEOVER && displayWidth >= 720) {
+        if (notification.getType() == InAppNotification.Type.TAKEOVER &&
+                displayWidth >= 720) {
             urls = new String[]{notification.getImage4xUrl(), notification.getImage2xUrl(), notification.getImageUrl()};
         }
 
@@ -331,7 +367,7 @@ import javax.net.ssl.SSLSocketFactory;
     private static byte[] checkDecide(RemoteService poster, Context context, String url)
             throws RemoteService.ServiceUnavailableException {
         final MPConfig config = MPConfig.getInstance(context);
-
+        // 判断是否连接网络
         if (!poster.isOnline(context, config.getOfflineMode())) {
             return null;
         }
@@ -349,7 +385,6 @@ import javax.net.ssl.SSLSocketFactory;
         } catch (final OutOfMemoryError e) {
             MPLog.e(LOGTAG, "Out of memory when getting to " + url + ".", e);
         }
-
         return response;
     }
 

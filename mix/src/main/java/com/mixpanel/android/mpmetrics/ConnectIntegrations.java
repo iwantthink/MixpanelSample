@@ -27,8 +27,14 @@ import java.util.Set;
         mUrbanAirshipRetries = 0;
     }
 
+    /**
+     * 判断是否有指定的三方SDK, 如果存在 则通过反射获取指定信息 保存到people 对象中
+     *
+     * @param integrations
+     */
     public synchronized void setupIntegrations(Set<String> integrations) {
         if (integrations.contains("urbanairship")) {
+            // 设置urban airship push服务
             setUrbanAirshipPeopleProp();
         }
         if (integrations.contains("braze")) {
@@ -47,12 +53,16 @@ import java.util.Set;
             String channelID = (String) pushManager.getClass().getMethod("getChannelId", new Class[]{}).invoke(pushManager);
             if (channelID != null && !channelID.isEmpty()) {
                 mUrbanAirshipRetries = 0;
-                if (mSavedUrbanAirshipChannelID == null || !mSavedUrbanAirshipChannelID.equals(channelID)) {
+                if (mSavedUrbanAirshipChannelID == null ||
+                        !mSavedUrbanAirshipChannelID.equals(channelID)) {
+                    // 最重要的就是这点  设置channelID
                     mMixpanel.getPeople().set("$android_urban_airship_channel_id", channelID);
                     mSavedUrbanAirshipChannelID = channelID;
                 }
             } else {
                 mUrbanAirshipRetries++;
+                // 最大尝试次数 3 次
+                // 延时2秒 重新尝试
                 if (mUrbanAirshipRetries <= UA_MAX_RETRIES) {
                     final Handler delayedHandler = new Handler();
                     delayedHandler.postDelayed(new Runnable() {

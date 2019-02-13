@@ -19,6 +19,7 @@ import java.util.Set;
 
     public interface OnNewResultsListener {
         void onNewResults();
+
         void onNewConnectIntegrations();
     }
 
@@ -42,7 +43,7 @@ import java.util.Set;
     // Called from other synchronized code. Do not call into other synchronized code or you'll
     // risk deadlock
     public synchronized void setDistinctId(String distinctId) {
-        if (mDistinctId == null || !mDistinctId.equals(distinctId)){
+        if (mDistinctId == null || !mDistinctId.equals(distinctId)) {
             mUnseenNotifications.clear();
         }
         mDistinctId = distinctId;
@@ -65,7 +66,7 @@ import java.util.Set;
         // 处理notification
         for (final InAppNotification n : newNotifications) {
             final int id = n.getId();
-            if (! mNotificationIds.contains(id)) {
+            if (!mNotificationIds.contains(id)) {
                 mNotificationIds.add(id);
                 mUnseenNotifications.add(n);
                 newContent = true;
@@ -74,35 +75,41 @@ import java.util.Set;
 
         // the following logic checks if the variants have been applied by looking up their id's in the HashSet
         // this is needed to make sure the user defined `mListener` will get called on new variants receiving
+        // 下面的逻辑通过在HashSet 集合中查找 variants的id,来确定是否应用了variants
         mVariants = variants;
 
         for (int i = 0; i < newVariantsLength; i++) {
             try {
                 JSONObject variant = variants.getJSONObject(i);
                 if (!mLoadedVariants.contains(variant.getInt("id"))) {
+                    // 存在新内容
                     newContent = true;
+                    // 新variants
                     hasNewVariants = true;
                     break;
                 }
-            } catch(JSONException e) {
+            } catch (JSONException e) {
                 MPLog.e(LOGTAG, "Could not convert variants[" + i + "] into a JSONObject while comparing the new variants", e);
             }
         }
 
         if (hasNewVariants && mVariants != null) {
+            // 清空旧的
             mLoadedVariants.clear();
 
             for (int i = 0; i < newVariantsLength; i++) {
                 try {
                     JSONObject variant = mVariants.getJSONObject(i);
                     mLoadedVariants.add(variant.getInt("id"));
-                } catch(JSONException e) {
+                } catch (JSONException e) {
                     MPLog.e(LOGTAG, "Could not convert variants[" + i + "] into a JSONObject while updating the map", e);
                 }
             }
         }
 
-        // in the case we do not receive a new variant, this means the A/B test should be turned off
+        // in the case we do not receive a new variant,
+        // this means the A/B test should be turned off
+        // 如果收到内容为空.,. 说明A/B 测试关闭
         if (newVariantsLength == 0) {
             mVariants = new JSONArray();
             if (mLoadedVariants.size() > 0) {
@@ -110,9 +117,12 @@ import java.util.Set;
                 newContent = true;
             }
         }
+
+        // 对variants 进行保存  -> MESSAGE_PERSIST_VARIANTS_RECEIVED
         mUpdatesFromMixpanel.storeVariants(mVariants);
 
         if (mAutomaticEventsEnabled == null && !automaticEvents) {
+            // 清空数据库中 automatic 类型的事件,people&event 表
             MPDbAdapter.getInstance(mContext).cleanupAutomaticEvents(mToken);
         }
         mAutomaticEventsEnabled = automaticEvents;
@@ -125,16 +135,17 @@ import java.util.Set;
                 }
                 if (!mIntegrations.equals(integrationsSet)) {
                     mIntegrations = integrationsSet;
+                    // 通知存在新的 Integerations
                     mListener.onNewConnectIntegrations();
                 }
-            } catch(JSONException e) {
+            } catch (JSONException e) {
                 MPLog.e(LOGTAG, "Got an integration id from " + integrations.toString() + " that wasn't an int", e);
             }
         }
 
         MPLog.v(LOGTAG, "New Decide content has become available. " +
-                    newNotifications.size() + " notifications and " +
-                    variants.length() + " experiments have been added.");
+                newNotifications.size() + " notifications and " +
+                variants.length() + " experiments have been added.");
 
         if (newContent && null != mListener) {
             mListener.onNewResults();
@@ -173,7 +184,9 @@ import java.util.Set;
         return notif;
     }
 
-    public synchronized Set<String> getIntegrations() { return mIntegrations; }
+    public synchronized Set<String> getIntegrations() {
+        return mIntegrations;
+    }
 
     // if a notification was failed to show, add it back to the unseen list so that we
     // won't lose it
@@ -184,7 +197,7 @@ import java.util.Set;
     }
 
     public synchronized boolean hasUpdatesAvailable() {
-        return (! mUnseenNotifications.isEmpty()) ||
+        return (!mUnseenNotifications.isEmpty()) ||
                 (mVariants != null && mVariants.length() > 0);
     }
 
@@ -192,22 +205,44 @@ import java.util.Set;
         return mAutomaticEventsEnabled;
     }
 
+    /**
+     * 判断是否需要抓取automatic类型的事件
+     *
+     * @return
+     */
     public boolean shouldTrackAutomaticEvent() {
         return isAutomaticEventsEnabled() == null ? true : isAutomaticEventsEnabled();
     }
 
     // Mutable, must be synchronized
+    // 会是 event 或者 people 的distinctID
+    // people > event 如果存在前者就会使用前者
     private String mDistinctId;
 
     private final String mToken;
+    /**
+     * 保存了通知id
+     */
     private final Set<Integer> mNotificationIds;
+    /**
+     * 通知列表, InAppNotification 保存了通知的具体内容
+     * 从Decide接口获取
+     */
     private final List<InAppNotification> mUnseenNotifications;
+    /**
+     * 在Mixpanel 类中传入,
+     * <p>
+     * 类型应该是 Mixpanel.SupportedUpdatesListener 类
+     */
     private final OnNewResultsListener mListener;
     /**
-     * ViewCrawler
+     * ViewCrawler 实现了 UpdatesFromMixpanel接口
      */
     private final UpdatesFromMixpanel mUpdatesFromMixpanel;
     private JSONArray mVariants;
+    /**
+     * 记录 variants的id
+     */
     private static final Set<Integer> mLoadedVariants = new HashSet<>();
     private Boolean mAutomaticEventsEnabled;
     private Context mContext;

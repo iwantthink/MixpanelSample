@@ -274,6 +274,7 @@ public class MPConfig {
         }
         mNotificationChannelName = notificationChannelName;
 
+        // 判断是否在清单文件中进行设置,如果没有设置 就使用默认的
         String eventsEndpoint = metaData.getString("com.mixpanel.android.MPConfig.EventsEndpoint");
         if (eventsEndpoint != null) {
             setEventsEndpoint(eventsEndpoint);
@@ -288,6 +289,7 @@ public class MPConfig {
             setMixpanelPeopleEndpoint();
         }
 
+        // 判断是否在清单文件中进行设置,如果没有设置 就使用默认的
         String decideEndpoint = metaData.getString("com.mixpanel.android.MPConfig.DecideEndpoint");
         if (decideEndpoint != null) {
             setDecideEndpoint(decideEndpoint);
@@ -370,6 +372,9 @@ public class MPConfig {
         return mEventsEndpoint;
     }
 
+    /**
+     * 使用默认的 event api地址 , 是否使用ip 获取地理位置
+     */
     public void setMixpanelEventsEndpoint() {
         setEventsEndpoint(MPConstants.URL.EVENT +
                 (getUseIpAddressForGeolocation() ? "1" : "0"));
@@ -399,6 +404,7 @@ public class MPConfig {
 
     /**
      * 设置decide 请求地址
+     * 使用默认值
      */
     public void setMixpanelDecideEndpoint() {
         setDecideEndpoint(MPConstants.URL.DECIDE);
@@ -426,6 +432,7 @@ public class MPConfig {
     /**
      * 获取是否禁止decideChecker
      * 默认false
+     *
      * @return
      */
     public boolean getDisableDecideChecker() {
@@ -486,8 +493,8 @@ public class MPConfig {
      * 2. AndroidManifest.xml 中的 package
      * <p>
      * - package 与 生成的R类的名称有关,所以如果清单文件中的package属性被修改了,
-     *      那么就需要开发者手动将这个属性告诉sdk,这样才能通过package获取资源信息
-     *
+     * 那么就需要开发者手动将这个属性告诉sdk,这样才能通过package获取资源信息
+     * <p>
      * - 实际上mContext.getPackageName()使用的是application id
      *
      * @return
@@ -570,6 +577,9 @@ public class MPConfig {
      */
     private final long mDataExpiration;
     private final int mMinimumDatabaseLimit;
+    /**
+     * 是否处于测试模式  默认false
+     */
     private final boolean mTestMode;
     private final boolean mDisableGestureBindingUI;
     private final boolean mDisableEmulatorBindingUI;
@@ -619,6 +629,8 @@ public class MPConfig {
     /**
      * SSLSocketFactory用来创建一个SSLSocket
      * SSLSocket 即 HTTPS 协议使用的 Socket
+     * <p>
+     * 默认情况下这个对象就是 默认的SSLSocketFactory ,  但是可以通过用户传入进行设置
      */
     private SSLSocketFactory mSSLSocketFactory;
     private OfflineMode mOfflineMode;

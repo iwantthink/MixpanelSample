@@ -19,6 +19,9 @@ import static com.mixpanel.android.mpmetrics.ConfigurationChecker.LOGTAG;
         mRandom = new Random();
     }
 
+    /**
+     * 初始化 session
+     */
     protected void initSession() {
         mEventsCounter = 0L;
         mPeopleCounter = 0L;

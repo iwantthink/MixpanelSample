@@ -73,7 +73,7 @@ public class HttpService implements RemoteService {
     public boolean isOnline(Context context, OfflineMode offlineMode) {
         // 判断 AdBlocker 是否启用
         if (sIsMixpanelBlocked) return false;
-        // 是否处于 离线模式
+        // 根据offlineMode 去判断是否处于 离线模式
         if (onOfflineMode(offlineMode)) return false;
 
         boolean isOnline;
@@ -115,6 +115,17 @@ public class HttpService implements RemoteService {
         return onOfflineMode;
     }
 
+
+    /**
+     * 请求指定 地址endpointUrl , 带上 参数 params , 返回字节
+     *
+     * @param endpointUrl
+     * @param params
+     * @param socketFactory
+     * @return
+     * @throws ServiceUnavailableException
+     * @throws IOException
+     */
     @Override
     public byte[] performRequest(String endpointUrl,
                                  Map<String, Object> params,
@@ -152,7 +163,7 @@ public class HttpService implements RemoteService {
                         builder.appendQueryParameter(param.getKey(), param.getValue().toString());
                     }
                     String query = builder.build().getEncodedQuery();
-
+                    //https://stackoverflow.com/questions/13105592/httpurlconnection-what-does-setfixedlengthstreamingmode-want-the-size-of
                     connection.setFixedLengthStreamingMode(query.getBytes().length);
                     connection.setDoOutput(true);
                     connection.setRequestMethod("POST");
@@ -167,6 +178,7 @@ public class HttpService implements RemoteService {
                 }
                 // 服务器返回的流
                 in = connection.getInputStream();
+                // 将流解析成字节
                 response = slurp(in);
                 in.close();
                 in = null;
@@ -177,7 +189,10 @@ public class HttpService implements RemoteService {
             } catch (final IOException e) {
                 if (connection.getResponseCode() >= MIN_UNAVAILABLE_HTTP_RESPONSE_CODE
                         && connection.getResponseCode() <= MAX_UNAVAILABLE_HTTP_RESPONSE_CODE) {
-                    throw new ServiceUnavailableException("Service Unavailable", connection.getHeaderField("Retry-After"));
+                    // 如果网络出现错误
+                    // 从响应的连接头中获取 时间(多秒ms之后重试)
+                    throw new ServiceUnavailableException("Service Unavailable",
+                            connection.getHeaderField("Retry-After"));
                 } else {
                     throw e;
                 }

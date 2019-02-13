@@ -151,7 +151,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
     @Override
     public void setEventBindings(JSONArray bindings) {
         if (bindings != null) {
-            final Message msg = mMessageThreadHandler.obtainMessage(ViewCrawler.MESSAGE_EVENT_BINDINGS_RECEIVED);
+            final Message msg = mMessageThreadHandler.
+                    obtainMessage(ViewCrawler.MESSAGE_EVENT_BINDINGS_RECEIVED);
             msg.obj = bindings;
             mMessageThreadHandler.sendMessage(msg);
         }
@@ -432,6 +433,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                         break;
                     case MESSAGE_VARIANTS_RECEIVED:
                         MPLog.v("ViewCrawlerHandler", "MESSAGE_VARIANTS_RECEIVED,handleVariantsReceived");
+                        // 处理通过decide 接口获取到的 variants 数据
+
                         handleVariantsReceived((JSONArray) msg.obj);
                         break;
                     case MESSAGE_HANDLE_EDITOR_CHANGES_RECEIVED:
@@ -440,11 +443,15 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                         break;
                     case MESSAGE_EVENT_BINDINGS_RECEIVED:
                         MPLog.v("ViewCrawlerHandler", "MESSAGE_EVENT_BINDINGS_RECEIVED,handleEventBindingsReceived");
-                        //处理从服务器主动获取的 event bindings 事件
+                        // 处理从服务器主动获取的 event bindings 事件
+                        // 通过decide接口获取到的
+                        // DecideMessages.reportResults
                         handleEventBindingsReceived((JSONArray) msg.obj);
                         break;
                     case MESSAGE_HANDLE_EDITOR_BINDINGS_RECEIVED:
-                        MPLog.v("ViewCrawlerHandler", "MESSAGE_HANDLE_EDITOR_BINDINGS_RECEIVED,handleEditorBindingsReceived");
+                        MPLog.v("ViewCrawlerHandler",
+                                "MESSAGE_HANDLE_EDITOR_BINDINGS_RECEIVED,handleEditorBindingsReceived");
+                        //
                         handleEditorBindingsReceived((JSONObject) msg.obj);
                         break;
                     case MESSAGE_HANDLE_EDITOR_CHANGES_CLEARED:
@@ -461,6 +468,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                         break;
                     case MESSAGE_PERSIST_VARIANTS_RECEIVED:
                         MPLog.v("ViewCrawlerHandler", "MESSAGE_PERSIST_VARIANTS_RECEIVED,persistVariants");
+                        // 保存variants到本地(SP)
                         persistVariants((JSONArray) msg.obj);
                         break;
                 }
@@ -499,6 +507,11 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             applyVariantsAndEventBindings();
         }
 
+        /**
+         * 保存 variants 到SP
+         *
+         * @param variants
+         */
         private void persistVariants(JSONArray variants) {
             final SharedPreferences preferences = getSharedPreferences();
             final SharedPreferences.Editor editor = preferences.edit();
@@ -506,6 +519,13 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             editor.apply();
         }
 
+
+        /**
+         * 将 variants 进行解析加载到内存中,保存在不同的集合中
+         *
+         * @param variants
+         * @param newVariants
+         */
         private void loadVariants(String variants, boolean newVariants) {
             if (null != variants) {
                 try {
@@ -514,17 +534,24 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                     final int variantsLength = variantsJson.length();
                     for (int variantIx = 0; variantIx < variantsLength; variantIx++) {
                         final JSONObject nextVariant = variantsJson.getJSONObject(variantIx);
+
                         final int variantIdPart = nextVariant.getInt("id");
                         final int experimentIdPart = nextVariant.getInt("experiment_id");
-                        final MPPair<Integer, Integer> variantId = new MPPair<Integer, Integer>(experimentIdPart, variantIdPart);
+                        final MPPair<Integer, Integer> variantId =
+                                new MPPair<Integer, Integer>(experimentIdPart, variantIdPart);
 
                         final JSONArray actions = nextVariant.getJSONArray("actions");
                         final int actionsLength = actions.length();
                         for (int i = 0; i < actionsLength; i++) {
                             final JSONObject change = actions.getJSONObject(i);
-                            final String targetActivity = JSONUtils.optionalStringKey(change, "target_activity");
+                            final String targetActivity = JSONUtils.optionalStringKey(change,
+                                    "target_activity");
                             final String name = change.getString("name");
-                            final VariantChange variantChange = new VariantChange(name, targetActivity, change, variantId);
+                            final VariantChange variantChange =
+                                    new VariantChange(name,
+                                            targetActivity,
+                                            change,
+                                            variantId);
                             mAppliedVisualChanges.add(variantChange);
                         }
 
@@ -927,7 +954,9 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * Accept and apply variant changes from a non-interactive source.
          */
         private void handleVariantsReceived(JSONArray variants) {
+            // 往SP中保存 variants
             persistVariants(variants);
+            // 加载到内存中
             loadVariants(variants.toString(), true);
             applyVariantsAndEventBindings();
         }
@@ -1037,12 +1066,17 @@ public class ViewCrawler implements UpdatesFromMixpanel,
 
             Set<String> updatedTweaks = new HashSet<>();
 
+            // 对variants 中的 acitons 进行处理
             {
                 for (VariantChange changeInfo : mAppliedVisualChanges) {
                     try {
+                        // 解析成 Edit
                         final EditProtocol.Edit edit =
                                 mProtocol.readEdit(changeInfo.change);
-                        newVisitors.add(new MPPair<String, ViewVisitor>(changeInfo.activityName, edit.visitor));
+                        // 添加到 集合
+                        newVisitors.add(new MPPair<String, ViewVisitor>(
+                                changeInfo.activityName,
+                                edit.visitor));
                         if (!mSeenExperiments.contains(changeInfo.variantId)) {
                             toTrack.add(changeInfo.variantId);
                         }
@@ -1056,6 +1090,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 }
             }
 
+            // A/B 测试
             {
                 for (VariantTweak tweakInfo : mAppliedTweaks) {
                     try {
@@ -1095,7 +1130,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             {
                 for (MPPair<String, JSONObject> changeInfo : mEditorChanges.values()) {
                     try {
-                        final EditProtocol.Edit edit = mProtocol.readEdit(changeInfo.second);
+                        final EditProtocol.Edit edit =
+                                mProtocol.readEdit(changeInfo.second);
                         newVisitors.add(new MPPair<String, ViewVisitor>(changeInfo.first, edit.visitor));
                         mEditorAssetUrls.addAll(edit.imageUrls);
                     } catch (final EditProtocol.CantGetEditAssetsException e) {
@@ -1252,6 +1288,11 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * Path -   ActivityName+事件信息
          */
         private final Map<String, MPPair<String, JSONObject>> mEditorEventBindings;
+        /**
+         * variants 中的 actions字段
+         * <p>
+         * 在loadVariants 中被赋值
+         */
         private final Set<VariantChange> mAppliedVisualChanges;
         private final Set<VariantTweak> mAppliedTweaks;
         private final Set<MPPair<Integer, Integer>> mEmptyExperiments;

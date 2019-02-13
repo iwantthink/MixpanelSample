@@ -6,11 +6,19 @@ import android.graphics.Color;
 import android.view.View;
 
 public class ActivityImageUtils {
+
     // May return null.
-    public static Bitmap getScaledScreenshot(final Activity activity, int scaleWidth, int scaleHeight, boolean relativeScaleIfTrue) {
+    public static Bitmap getScaledScreenshot(final Activity activity,
+                                             int scaleWidth,
+                                             int scaleHeight,
+                                             boolean relativeScaleIfTrue) {
+        // 找到保存内容的控件 ...是DecorView 中的一个FrameLayout
         final View someView = activity.findViewById(android.R.id.content);
+        // 获取到 指定View的 最终的父类, 这里就是 DecorView
         final View rootView = someView.getRootView();
+        // 需要获取原始的状态, 在获取完截图之后重新设置回去
         final boolean originalCacheState = rootView.isDrawingCacheEnabled();
+        // 只有开启了drawingcache  才能获取视图
         rootView.setDrawingCacheEnabled(true);
         rootView.buildDrawingCache(true);
 
@@ -32,15 +40,25 @@ public class ActivityImageUtils {
                 }
             }
         }
+
+        // 恢复之前的状态
         if (!originalCacheState) {
             rootView.setDrawingCacheEnabled(false);
         }
         return scaled;
     }
 
+    /**
+     * 获取android.R.id.content 中第一个像素的颜色
+     *
+     * @param activity
+     * @return
+     */
     public static int getHighlightColorFromBackground(final Activity activity) {
         int incolor = Color.BLACK;
-        final Bitmap screenshot1px = getScaledScreenshot(activity, 1, 1, false);
+        // 获取1px 大小的 视图 bitmap
+        final Bitmap screenshot1px = getScaledScreenshot(activity,
+                1, 1, false);
         if (null != screenshot1px) {
             incolor = screenshot1px.getPixel(0, 0);
         }

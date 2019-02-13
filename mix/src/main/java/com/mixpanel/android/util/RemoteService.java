@@ -33,6 +33,9 @@ public interface RemoteService {
             return mRetryAfter;
         }
 
+        /**
+         * 多少ms之后重试的时间
+         */
         private final int mRetryAfter;
     }
 }

@@ -319,7 +319,7 @@ public class MixpanelAPI {
         }
         mDecideMessages.setDistinctId(decideId);
 
-        //判断是否首次加载 ,发送FIRST_OPEN事件
+        // 判断是否首次加载 ,发送FIRST_OPEN事件(先从sp中获取,然后再判断DB是否被创建)
         // DB 仅在 mMessages 发送了消息之后 才会被创建,初始化时不会被创建
         if (mPersistentIdentity.isFirstLaunch(
                 MPDbAdapter.getInstance(mContext).getDatabaseFile().exists())) {
@@ -333,17 +333,21 @@ public class MixpanelAPI {
         // 判断是否禁止使用 DecideChecker
         if (!mConfig.getDisableDecideChecker()) {
             // 加载decide 数据!!!!!! ,往decide 地址去请求数据
+            // 能够获取到 event 等等的信息
             // 这里应该是首次使用  AnalyticsMessageHandler 去发送数据
             // 在这里 数据库对象会被创建
             mMessages.installDecideCheck(mDecideMessages);
         }
+
         //注册声明周期回调
         registerMixpanelActivityLifecycleCallbacks();
-        //判断是否发送App_Open事件
+
+        //判断是否禁止发送App_Open事件
         if (sendAppOpen()) {
+            // 发送app_open 事件..
             track("$app_open", null);
         }
-        //判断当前token是否处理过
+        //判断当前token是否是第一次进行处理
         if (!mPersistentIdentity.isFirstIntegration(mToken)) {
             try {
                 final JSONObject messageProps = new JSONObject();
@@ -353,12 +357,17 @@ public class MixpanelAPI {
                 messageProps.put("distinct_id", token);
                 messageProps.put("$lib_version", MPConfig.VERSION);
 
+                // 写死了 token....
                 final AnalyticsMessages.EventDescription eventDescription =
                         new AnalyticsMessages.EventDescription(
                                 "Integration",
                                 messageProps,
                                 "85053bf24bba75239b16a601d9387e17");
+                // 通过 AnalyticsMessage 发送事件
                 mMessages.eventsMessage(eventDescription);
+                // checkDecide = false ....
+                // FLUSH_QUEUE
+                // 上传数据!!
                 mMessages.postToServer(
                         new AnalyticsMessages.FlushDescription(
                                 "85053bf24bba75239b16a601d9387e17",
@@ -650,6 +659,7 @@ public class MixpanelAPI {
     // This MAY CHANGE IN FUTURE RELEASES, so minimize code that assumes thread safety
     // (and perhaps document that code here).
     public void track(String eventName, JSONObject properties) {
+        // 判断是否退出事件抓取
         if (hasOptedOutTracking()) return;
         track(eventName, properties, false);
     }
@@ -1511,7 +1521,8 @@ public class MixpanelAPI {
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             if (mContext.getApplicationContext() instanceof Application) {
                 final Application app = (Application) mContext.getApplicationContext();
-                mMixpanelActivityLifecycleCallbacks = new MixpanelActivityLifecycleCallbacks(this, mConfig);
+                mMixpanelActivityLifecycleCallbacks =
+                        new MixpanelActivityLifecycleCallbacks(this, mConfig);
                 app.registerActivityLifecycleCallbacks(mMixpanelActivityLifecycleCallbacks);
             } else {
                 MPLog.i(LOGTAG, "Context is not an Application, Mixpanel will not automatically show in-app notifications or A/B test experiments. We won't be able to automatically flush on an app background.");
@@ -1544,6 +1555,9 @@ public class MixpanelAPI {
         mUpdatesFromMixpanel.applyPersistedUpdates();
     }
 
+    /**
+     * App 重新跳转到了前台
+     */
     /* package */ void onForeground() {
         mSessionMetadata.initSession();
     }
@@ -2133,6 +2147,7 @@ public class MixpanelAPI {
 
         private void showGivenOrAvailableNotification(final InAppNotification notifOrNull,
                                                       final Activity parent) {
+            // 版本判断
             if (Build.VERSION.SDK_INT < MPConfig.UI_FEATURES_MIN_API) {
                 MPLog.v(LOGTAG, "Will not show notifications, os version is too low.");
                 return;
@@ -2160,20 +2175,31 @@ public class MixpanelAPI {
                         }
 
                         final InAppNotification.Type inAppType = toShow.getType();
-                        if (inAppType == InAppNotification.Type.TAKEOVER && !ConfigurationChecker.checkTakeoverInAppActivityAvailable(parent.getApplicationContext())) {
+                        // 如果类型是takeover .. 则需要判断这种类型是否可用
+                        if (inAppType == InAppNotification.Type.TAKEOVER &&
+                                !ConfigurationChecker.checkTakeoverInAppActivityAvailable(parent.getApplicationContext())) {
                             MPLog.v(LOGTAG, "Application is not configured to show takeover notifications, none will be shown.");
                             return; // Can't show due to config.
                         }
+                        // 内容视图中 第(0,0)位置的像素的颜色
+                        final int highlightColor =
+                                ActivityImageUtils.
+                                        getHighlightColorFromBackground(parent);
 
-                        final int highlightColor = ActivityImageUtils.getHighlightColorFromBackground(parent);
-                        final UpdateDisplayState.DisplayState.InAppNotificationState proposal =
-                                new UpdateDisplayState.DisplayState.InAppNotificationState(toShow, highlightColor);
-                        final int intentId = UpdateDisplayState.proposeDisplay(proposal, getDistinctId(), mToken);
+                        final UpdateDisplayState.DisplayState.InAppNotificationState
+                                proposal =
+                                new UpdateDisplayState.
+                                        DisplayState.
+                                        InAppNotificationState(toShow, highlightColor);
+                        final int intentId = UpdateDisplayState.
+                                proposeDisplay(proposal, getDistinctId(), mToken);
                         if (intentId <= 0) {
                             MPLog.e(LOGTAG, "DisplayState Lock in inconsistent state! Please report this issue to Mixpanel");
                             return;
                         }
 
+                        // 根据不同的类型 去做不同的操作
+                        // 一个是展示activity 一个是展示fragment
                         switch (inAppType) {
                             case MINI: {
                                 final UpdateDisplayState claimed = UpdateDisplayState.claimDisplayState(intentId);
