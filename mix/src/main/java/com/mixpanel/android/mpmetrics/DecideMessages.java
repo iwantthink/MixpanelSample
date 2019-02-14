@@ -78,6 +78,7 @@ import java.util.Set;
         // 下面的逻辑通过在HashSet 集合中查找 variants的id,来确定是否应用了variants
         mVariants = variants;
 
+        // 判断是否有新的variants...
         for (int i = 0; i < newVariantsLength; i++) {
             try {
                 JSONObject variant = variants.getJSONObject(i);
@@ -93,6 +94,7 @@ import java.util.Set;
             }
         }
 
+        // 存在新的 variants, 则更新 mLoadedVariants..
         if (hasNewVariants && mVariants != null) {
             // 清空旧的
             mLoadedVariants.clear();
@@ -109,24 +111,30 @@ import java.util.Set;
 
         // in the case we do not receive a new variant,
         // this means the A/B test should be turned off
-        // 如果收到内容为空.,. 说明A/B 测试关闭
+        // 如果收到内容为空.,. 说明A/B测试需要被关闭
         if (newVariantsLength == 0) {
             mVariants = new JSONArray();
+            // 内存中的缓存
             if (mLoadedVariants.size() > 0) {
                 mLoadedVariants.clear();
                 newContent = true;
             }
         }
 
-        // 对variants 进行保存  -> MESSAGE_PERSIST_VARIANTS_RECEIVED
+        //   发送 MESSAGE_PERSIST_VARIANTS_RECEIVED msg
+        // 交给 ViewCrawlerHandler 去处理
+        // 具体的操作是 :对variants 进行保存(sp)
         mUpdatesFromMixpanel.storeVariants(mVariants);
 
+        // 首次处理... 会清空 automatic类型事件
         if (mAutomaticEventsEnabled == null && !automaticEvents) {
             // 清空数据库中 automatic 类型的事件,people&event 表
             MPDbAdapter.getInstance(mContext).cleanupAutomaticEvents(mToken);
         }
+
         mAutomaticEventsEnabled = automaticEvents;
 
+        //TODO 待分析
         if (integrations != null) {
             try {
                 HashSet<String> integrationsSet = new HashSet<String>();
@@ -147,6 +155,7 @@ import java.util.Set;
                 newNotifications.size() + " notifications and " +
                 variants.length() + " experiments have been added.");
 
+        // 如果存在新的 variants , notification  就会回调
         if (newContent && null != mListener) {
             mListener.onNewResults();
         }
@@ -196,6 +205,11 @@ import java.util.Set;
         }
     }
 
+    /**
+     * in-app notifications 或者 variants 是否存在数据
+     *
+     * @return
+     */
     public synchronized boolean hasUpdatesAvailable() {
         return (!mUnseenNotifications.isEmpty()) ||
                 (mVariants != null && mVariants.length() > 0);
@@ -230,7 +244,7 @@ import java.util.Set;
      */
     private final List<InAppNotification> mUnseenNotifications;
     /**
-     * 在Mixpanel 类中传入,
+     * 在Mixpanel 被创建,从构造函数中传入
      * <p>
      * 类型应该是 Mixpanel.SupportedUpdatesListener 类
      */
@@ -242,6 +256,7 @@ import java.util.Set;
     private JSONArray mVariants;
     /**
      * 记录 variants的id
+     * 内存中的variants,缓存
      */
     private static final Set<Integer> mLoadedVariants = new HashSet<>();
     private Boolean mAutomaticEventsEnabled;

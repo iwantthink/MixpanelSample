@@ -532,7 +532,8 @@ import java.util.WeakHashMap;
     }
 
     /**
-     * Installs a TextWatcher in each matching view. Does nothing if matching views are not TextViews.
+     * Installs a TextWatcher in each matching view.
+     * Does nothing if matching views are not TextViews.
      */
     public static class AddTextChangeListener extends EventTriggeringVisitor {
         public AddTextChangeListener(List<Pathfinder.PathElement> path, String eventName, OnEventListener listener) {
@@ -634,8 +635,11 @@ import java.util.WeakHashMap;
                                       String eventName,
                                       OnEventListener listener, boolean debounce) {
             super(path);
+            // DynamicEventTracker
             mListener = listener;
+            // 事件名称
             mEventName = eventName;
+            // 不同的 EventTriggeringVisitor 实现类 有不同的值
             mDebounce = debounce;
         }
 
@@ -659,12 +663,15 @@ import java.util.WeakHashMap;
 
         /**
          * 事件回调, 即事件发生之后需要调用的逻辑
+         * <p>
+         * DynamicEventTracker
          */
         private final OnEventListener mListener;
         /**
          * 事件名称
          */
         private final String mEventName;
+        //TODO 具体作用待分析
         private final boolean mDebounce;
     }
 
@@ -708,7 +715,14 @@ import java.util.WeakHashMap;
     protected abstract String name();
 
     /**
-     * 路径
+     * 解析过后的路径
+     * <p>
+     * "path":[
+     * {"index":0,"prefix":"shortest","id":16908290},
+     * {"index":0,"view_class":"android.support.constraint.ConstraintLayout"},
+     * {"index":0,"mp_id_name":"btn_toast"}]
+     * <p>
+     * 每个Json对象都会被解析成一个 对应的PathElement
      */
     private final List<Pathfinder.PathElement> mPath;
     /**

@@ -317,6 +317,8 @@ public class MixpanelAPI {
         if (null == decideId) {
             decideId = mPersistentIdentity.getEventsDistinctId();
         }
+
+        // 在这里就已经设置了 DistinctId
         mDecideMessages.setDistinctId(decideId);
 
         // 判断是否首次加载 ,发送FIRST_OPEN事件(先从sp中获取,然后再判断DB是否被创建)
@@ -392,7 +394,7 @@ public class MixpanelAPI {
         }
         // 开始处理一些数据,加载缓存的event 事件
         mUpdatesFromMixpanel.startUpdates();
-
+        // 开启 异常捕获...
         ExceptionHandler.init();
     }
 
@@ -960,7 +962,7 @@ public class MixpanelAPI {
 
     /**
      * 将一个之前退出的用户重新加入 tacking
-     *
+     * <p>
      * Use this method to opt-in an already opted-out user from tracking.
      * People updates and track
      * calls will be sent to Mixpanel after using this method.
@@ -1645,8 +1647,7 @@ public class MixpanelAPI {
                 mixpanelPrefs);
     }
 
-    /* package */ DecideMessages constructDecideUpdates(final String token, final DecideMessages.OnNewResultsListener listener, UpdatesFromMixpanel updatesFromMixpanel) {
-        //
+    DecideMessages constructDecideUpdates(final String token, final DecideMessages.OnNewResultsListener listener, UpdatesFromMixpanel updatesFromMixpanel) {
         return new DecideMessages(mContext,
                 token,
                 listener,
@@ -2308,6 +2309,18 @@ public class MixpanelAPI {
             mConnectIntegrations.setupIntegrations(mDecideMessages.getIntegrations());
         }
 
+
+        /**
+         * 当Mixpanel出现新的更新时(in-app notifications / A/B test ),会添加一个这个listener
+         *
+         * 该方法正常情况下 不需要手动调用,因为是SDK自动处理的
+         *
+         * 以下俩个方法可以触发:
+         * People#showNotificationIfAvailable(Activity)
+         * People#joinExperimentIfAvailable()
+         *
+         * @param listener
+         */
         @Override
         public void addOnMixpanelUpdatesReceivedListener(OnMixpanelUpdatesReceivedListener listener) {
             // 往set中添加

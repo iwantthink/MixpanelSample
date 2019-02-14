@@ -341,6 +341,7 @@ import java.util.List;
      */
     private static class IntStack {
         public IntStack() {
+            //初始化了 一个 大小为256 的int数组
             mStack = new int[MAX_INDEX_STACK_SIZE];
             mStackSize = 0;
         }

@@ -75,6 +75,19 @@ import java.util.List;
         mLayoutErrorListener = layoutErrorListener;
     }
 
+    /**
+     * 解析eventbinding 事件,
+     *
+     * 根据不同的 eventType 类型
+     * 创建自定义的 EventTriggeringVisitor 对象(继承自ViewVisitor)
+     *
+     *
+     *
+     * @param source
+     * @param listener DynamicEventTracker
+     * @return
+     * @throws BadInstructionsException
+     */
     public ViewVisitor readEventBinding(JSONObject source,
                                         ViewVisitor.OnEventListener listener) throws BadInstructionsException {
         try {
@@ -84,7 +97,8 @@ import java.util.List;
             final String eventType = source.getString("event_type");
             //路径
             final JSONArray pathDesc = source.getJSONArray("path");
-            //解析路径,Json转换成 PathElement
+            // 解析路径,Json转换成 PathElement
+            // 每条 event 事件 会对应多个 PathElement
             final List<Pathfinder.PathElement> path = readPath(pathDesc, mResourceIds);
             //解析出来的路径如果为0,则不可能绑定到UI ,所以抛出异常
             if (path.size() == 0) {
