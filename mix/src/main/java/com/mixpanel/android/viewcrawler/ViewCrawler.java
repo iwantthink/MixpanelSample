@@ -1207,7 +1207,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             }
 
             {
-                for (MPPair<String, JSONObject> changeInfo : mEditorEventBindings.values()) {
+                for (MPPair<String, JSONObject> changeInfo :
+                        mEditorEventBindings.values()) {
                     try {
                         final ViewVisitor visitor =
                                 mProtocol.readEventBinding(changeInfo.second, mDynamicEventTracker);
