@@ -16,8 +16,8 @@ group = GROUP
 version = VERSION_NAME
 
 android {
-    compileSdkVersion 26
-    buildToolsVersion '26.0.2'
+    compileSdkVersion 28
+    buildToolsVersion '28.0.3'
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_7
@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         minSdkVersion 9
-        targetSdkVersion 23
+        targetSdkVersion 28
         testApplicationId "com.mixpanel.android.mpmetrics"
         testInstrumentationRunner "android.test.InstrumentationTestRunner"
         consumerProguardFiles 'proguard.txt'
@@ -55,7 +55,7 @@ allprojects {
 // pom! If you need a transitive dependency in the library, you'll
 // have to change the bit in uploadArchives that marks all dependencies as optional.
 dependencies {
-    compile 'com.google.android.gms:play-services-gcm:10.0.1'
+    implementation 'com.google.android.gms:play-services-gcm:10.2.1'
 }
 
 //task wrapper(type: Wrapper) {

@@ -589,10 +589,19 @@ public class MPConfig {
     private final boolean mDisableAppOpenEvent;
     private final boolean mDisableViewCrawler;
     private final String[] mDisableViewCrawlerForProjects;
+    /**
+     * event api 地址
+     * MPConstants 类中可以查看
+     *
+     * 默认: https://api.mixpanel.com/track?ip=
+     * 也可以通过清单文件中进行配置
+     */
     private String mEventsEndpoint;
     private String mPeopleEndpoint;
     /**
      * decide请求地址
+     * MPConstants 类中可以查看
+     *
      */
     private String mDecideEndpoint;
     /**

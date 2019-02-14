@@ -38,6 +38,7 @@ public class ExceptionHandler implements Thread.UncaughtExceptionHandler {
                     //发送捕获到的异常事件
                     final JSONObject messageProp = new JSONObject();
                     messageProp.put(AutomaticEvents.APP_CRASHED_REASON, e.toString());
+                    // 插入队列
                     mixpanel.track(AutomaticEvents.APP_CRASHED, messageProp, true);
                 } catch (JSONException e) {
                 }
@@ -48,6 +49,7 @@ public class ExceptionHandler implements Thread.UncaughtExceptionHandler {
         MixpanelAPI.allInstances(new MixpanelAPI.InstanceProcessor() {
             @Override
             public void process(MixpanelAPI mixpanel) {
+                // 触发上传
                 mixpanel.flushNoDecideCheck();
             }
         });

@@ -40,7 +40,6 @@ public class MainActivity extends AppCompatActivity {
         mContext = this;
         MPLog.setLevel(0);
         mMixpanelAPI = MixpanelAPI.getInstance(mContext, MIXPANEL_TOKEN);
-
         findViewById(R.id.btn_test).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

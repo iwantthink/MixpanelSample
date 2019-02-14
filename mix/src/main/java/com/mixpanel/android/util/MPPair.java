@@ -18,6 +18,7 @@ public class MPPair<F, S> extends Pair<F, S> {
 
     @Override
     public boolean equals(Object o) {
+        // 高版本 直接使用默认的 对比方法
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN) {
             return super.equals(o);
         }

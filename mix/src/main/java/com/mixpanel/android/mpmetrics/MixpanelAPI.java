@@ -363,7 +363,7 @@ public class MixpanelAPI {
                                 "Integration",
                                 messageProps,
                                 "85053bf24bba75239b16a601d9387e17");
-                // 通过 AnalyticsMessage 发送事件
+                // 通过 AnalyticsMessage 将 Integration事件 插入队列
                 mMessages.eventsMessage(eventDescription);
                 // checkDecide = false ....
                 // FLUSH_QUEUE
@@ -372,7 +372,7 @@ public class MixpanelAPI {
                         new AnalyticsMessages.FlushDescription(
                                 "85053bf24bba75239b16a601d9387e17",
                                 false));
-
+                // 更新状态
                 mPersistentIdentity.setIsIntegrated(mToken);
             } catch (JSONException e) {
             }
@@ -382,8 +382,10 @@ public class MixpanelAPI {
         if (mPersistentIdentity.isNewVersion(deviceInfo.get("$android_app_version_code"))) {
             try {
                 final JSONObject messageProps = new JSONObject();
-                messageProps.put(AutomaticEvents.VERSION_UPDATED, deviceInfo.get("$android_app_version"));
-                track(AutomaticEvents.APP_UPDATED, messageProps, true);
+                messageProps.put(AutomaticEvents.VERSION_UPDATED,
+                        deviceInfo.get("$android_app_version"));
+                track(AutomaticEvents.APP_UPDATED, messageProps,
+                        true);
             } catch (JSONException e) {
             }
 
@@ -957,7 +959,10 @@ public class MixpanelAPI {
     }
 
     /**
-     * Use this method to opt-in an already opted-out user from tracking. People updates and track
+     * 将一个之前退出的用户重新加入 tacking
+     *
+     * Use this method to opt-in an already opted-out user from tracking.
+     * People updates and track
      * calls will be sent to Mixpanel after using this method.
      * This method will internally track an opt-in event to your project.
      *
@@ -2391,8 +2396,10 @@ public class MixpanelAPI {
 
     ////////////////////////////////////////////////////
     protected void flushNoDecideCheck() {
+        // 是否推出tracking
         if (hasOptedOutTracking()) return;
-        mMessages.postToServer(new AnalyticsMessages.FlushDescription(mToken, false));
+        mMessages.postToServer(new AnalyticsMessages.FlushDescription(mToken,
+                false));
     }
 
     protected void track(String eventName,

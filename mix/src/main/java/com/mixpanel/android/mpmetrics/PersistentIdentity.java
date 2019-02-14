@@ -471,6 +471,13 @@ import java.util.concurrent.Future;
         }
     }
 
+
+    /**
+     * 判断是否是新版本
+     *
+     * @param versionCode
+     * @return
+     */
     public synchronized boolean isNewVersion(String versionCode) {
         if (versionCode == null) {
             return false;
@@ -478,18 +485,22 @@ import java.util.concurrent.Future;
 
         Integer version = Integer.valueOf(versionCode);
         try {
+            // 获取缓存SP中的 app version code
             if (sPreviousVersionCode == null) {
                 SharedPreferences mixpanelPreferences = mMixpanelPreferences.get();
                 sPreviousVersionCode = mixpanelPreferences.getInt("latest_version_code", -1);
+                // -1.. 说明这是首次判断
                 if (sPreviousVersionCode == -1) {
+                    // 将当前值保存即可
                     sPreviousVersionCode = version;
                     SharedPreferences.Editor mixpanelPreferencesEditor = mMixpanelPreferences.get().edit();
                     mixpanelPreferencesEditor.putInt("latest_version_code", version);
                     writeEdits(mixpanelPreferencesEditor);
                 }
             }
-
+            // 之前app版本是否 小于 当前版本
             if (sPreviousVersionCode.intValue() < version.intValue()) {
+                // 更新sp
                 SharedPreferences.Editor mixpanelPreferencesEditor = mMixpanelPreferences.get().edit();
                 mixpanelPreferencesEditor.putInt("latest_version_code", version);
                 writeEdits(mixpanelPreferencesEditor);
@@ -810,6 +821,9 @@ import java.util.concurrent.Future;
     private JSONArray mWaitingPeopleRecords;
     /**
      * setOptOutTracking() 方法进行更改
+     *
+     * 是否退出追踪
+     *
      */
     private Boolean mIsUserOptOut;
     private static Integer sPreviousVersionCode;

@@ -118,11 +118,11 @@ public class ViewCrawler implements UpdatesFromMixpanel,
     }
 
     /**
-     * Mixpanel - startUpdates
+     * 会在MixpanelApi 构造函数中最后 被调用
      */
     @Override
     public void startUpdates() {
-        // 启用MessageThreadHandler
+        // 启用MessageThreadHandler, 释放lock ,允许Handler 去处理 msg
         mMessageThreadHandler.start();
         //加载本地Event数据!
         applyPersistedUpdates();
@@ -405,9 +405,10 @@ public class ViewCrawler implements UpdatesFromMixpanel,
 
                 final int what = msg.what;
                 switch (what) {
+                    // 在MixpanelApi 的 构造函数中 被调用
                     case MESSAGE_INITIALIZE_CHANGES:
                         MPLog.v("ViewCrawlerHandler", "MESSAGE_INITIALIZE_CHANGES,loadKnownChanges");
-                        //在MixpanelApi 的 构造函数中 被调用
+                        // 加载本地的缓存数据,例如 AB ,tweaks,Event bindings 等信息
                         loadKnownChanges();
                         break;
                     case MESSAGE_CONNECT_TO_EDITOR:
@@ -483,7 +484,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * <p>
          * Load stored changes (AB, tweaks and event bindings) from persistent storage.
          * <p>
-         * 加载缓存在本地的事件
+         * 加载缓存在本地的事件到内存中,避免重复抓取
          */
         private void loadKnownChanges() {
             final SharedPreferences preferences = getSharedPreferences();
@@ -496,10 +497,12 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             mAppliedVisualChanges.clear();
             mAppliedTweaks.clear();
             mSeenExperiments.clear();
-            //
+            // 解析variants 字符串
             loadVariants(storedChanges, false);
-
+            // 清空本地的event binding 数据
             mPersistentEventBindings.clear();
+
+
             // 解析json,保存到成员变量中去备用(加载到内存中)
             // 加载Event事件
             loadEventBindings(storedBindings);
@@ -529,29 +532,40 @@ public class ViewCrawler implements UpdatesFromMixpanel,
         private void loadVariants(String variants, boolean newVariants) {
             if (null != variants) {
                 try {
+                    // 转换成JsonArray
                     final JSONArray variantsJson = new JSONArray(variants);
 
                     final int variantsLength = variantsJson.length();
+                    // 遍历每个 variant
                     for (int variantIx = 0; variantIx < variantsLength; variantIx++) {
-                        final JSONObject nextVariant = variantsJson.getJSONObject(variantIx);
 
+                        final JSONObject nextVariant = variantsJson.
+                                getJSONObject(variantIx);
+                        // 获取id
                         final int variantIdPart = nextVariant.getInt("id");
+                        // 获取experiment_id
                         final int experimentIdPart = nextVariant.getInt("experiment_id");
+                        // 保存上面获取到的俩个id
                         final MPPair<Integer, Integer> variantId =
                                 new MPPair<Integer, Integer>(experimentIdPart, variantIdPart);
 
+                        // 获取actions
                         final JSONArray actions = nextVariant.getJSONArray("actions");
                         final int actionsLength = actions.length();
                         for (int i = 0; i < actionsLength; i++) {
                             final JSONObject change = actions.getJSONObject(i);
-                            final String targetActivity = JSONUtils.optionalStringKey(change,
+                            // 从change 中 获取 target_activity , 为空则返回null
+                            final String targetActivity = JSONUtils.
+                                    optionalStringKey(change,
                                     "target_activity");
                             final String name = change.getString("name");
+                            // 改变的地方
                             final VariantChange variantChange =
                                     new VariantChange(name,
                                             targetActivity,
                                             change,
                                             variantId);
+
                             mAppliedVisualChanges.add(variantChange);
                         }
 
@@ -1292,6 +1306,9 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * variants 中的 actions字段
          * <p>
          * 在loadVariants 中被赋值
+         *
+         * 可视化的改变 , AB测试
+         *
          */
         private final Set<VariantChange> mAppliedVisualChanges;
         private final Set<VariantTweak> mAppliedTweaks;
