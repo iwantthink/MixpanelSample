@@ -77,10 +77,18 @@ import java.util.List;
 
     /**
      * 解析eventbinding 事件,
-     *
+     * <p>
      * 根据不同的 eventType 类型
      * 创建自定义的 EventTriggeringVisitor 对象(继承自ViewVisitor)
+     * <p>
+     * 存在四类 EventTriggeringVisitor
+     * 1. click
+     * 2. selected
+     * 3. text_changed
+     * 4. detected
      *
+     *
+     * source 包含 event_name event_type  path target_activity
      *
      *
      * @param source

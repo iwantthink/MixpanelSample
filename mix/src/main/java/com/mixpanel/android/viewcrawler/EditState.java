@@ -3,8 +3,11 @@ package com.mixpanel.android.viewcrawler;
 import android.app.Activity;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewTreeObserver;
+
+import com.mixpanel.android.util.MPLog;
 
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
@@ -33,8 +36,9 @@ import java.util.Set;
      */
     @Override
     public void add(Activity newOne) {
-        //添加到Set中,并检查当前线程是否是main,只有在main中才能添加
+        // 添加到Set中,并检查当前线程是否是main,只有在main中才能添加
         super.add(newOne);
+        // 由于Activity 信息 更新了,所以一些相对应的信息也需要进行更新,例如 AccessibilityDelegate
         applyEditsOnUiThread();
     }
 
@@ -57,16 +61,24 @@ import java.util.Set;
      * <p>
      * setEdits can be called from any thread, although the changes will occur (eventually) on the
      * UI thread of the application, and may not appear immediately.
+     * <p>
+     * <p>
+     * 这个方法 在 ApplicationLifeCallback 中 也会被调用到...
+     * 具体的是 onResume()方法中, joinExperimentIfAvailable()
+     * 所以正常情况下 只会有 一个 EditBinding 在运行... 当然俩个也有可能
      *
      * @param newEdits A Map from activity name to a list of edits to apply
      */
     // Must be thread-safe
     public void setEdits(Map<String, List<ViewVisitor>> newEdits) {
+
+        MPLog.v("EditState", "setEdits , newEdits.size = " + newEdits.size());
         // Delete images that are no longer needed
 
         synchronized (mCurrentEdits) {
             for (final EditBinding stale : mCurrentEdits) {
-                //停止循环
+                // 停止循环
+                // 清除缓存
                 stale.kill();
             }
             //清空
@@ -85,6 +97,8 @@ import java.util.Set;
 
     /**
      * 判断是否在主线程中,如果不是则切换到主线程中
+     * <p>
+     * 这个方法在初始化时会被调用 , 在 有新的activity 添加的时候也会被调用
      */
     private void applyEditsOnUiThread() {
         if (Thread.currentThread() == mUiThreadHandler.getLooper().getThread()) {
@@ -102,10 +116,12 @@ import java.util.Set;
     // Must be called on UI Thread
     private void applyIntendedEdits() {
         //遍历所有在集合中的Activity
+        // LifecycleCallbacks(ViewCrawler) 会实时更新 Activity信息
         for (final Activity activity : getAll()) {
             //获取Activity名称
             final String activityName = activity.getClass().getCanonicalName();
             //decorView的RootView
+            // 就是DecovView
             final View rootView = activity.getWindow().getDecorView().getRootView();
 
             final List<ViewVisitor> specificChanges;
@@ -113,11 +129,11 @@ import java.util.Set;
             synchronized (mIntendedEdits) {
                 //存在具体Activity
                 specificChanges = mIntendedEdits.get(activityName);
-                //不存在具体activity,通配
+                //不存在具体activity,通配符
                 wildcardChanges = mIntendedEdits.get(null);
             }
 
-            //将这些AccessibilityDelegate 添加到View上
+            //将这些 AccessibilityDelegate 添加到View上
             if (null != specificChanges) {
                 applyChangesFromList(rootView, specificChanges);
             }
@@ -143,8 +159,16 @@ import java.util.Set;
                 //保存 事件和 View之间的关联信息
                 //是一个Runnable 也是一个onGlobalLayoutListener回调
                 //一旦创建就开启不停的循环,判断是否需要移除 onGlobalLayoutListener回调和 AccessibilityDelegate
+                // 一个 DecorView 对应一个 EditBinding ..
+                // 多个Activity 就会对应多个 DecorView, 那么就会有多个EditBinding 同时运行
+                // 但是 MixpanelActivityLifecycleCallbacks 生命周期 的onResume() 中会调用 setEdits()
+                // 其会清空 mCurrentEdits 并重新开启新的循环
+                // 而LifecycleCallbacks(ViewCrawler) 会实时更新 Activity信息
                 final EditBinding binding =
-                        new EditBinding(rootView, visitor, mUiThreadHandler);
+                        new EditBinding(rootView,
+                                visitor,
+                                mUiThreadHandler);
+                // 将RootView EventTriggeringVisitor 和 Handler(main) 保存到 EditBinding
                 mCurrentEdits.add(binding);
             }
         }
@@ -171,7 +195,7 @@ import java.util.Set;
             final ViewTreeObserver observer = viewRoot.getViewTreeObserver();
             //防止出现异常,必须先判断是否存活
             if (observer.isAlive()) {
-                //注册回调,在视图发生变化时 会执行run
+                //注册回调,在视图发生变化时,或者可见度发生变化,则会执行run
                 observer.addOnGlobalLayoutListener(this);
             }
             //手动开启run循环
@@ -195,16 +219,21 @@ import java.util.Set;
             }
             //获取rootView
             final View viewRoot = mViewRoot.get();
-            //如果为空 || 已经死亡
+
+            Log.d("EditBinding", "ViewRoot.hashCode():" + viewRoot.hashCode());
+
+            //如果为空 || 已经死亡(被kill()方法控制)
             if (null == viewRoot || mDying) {
                 //移除ViewTreeObserver的回调
                 cleanUp();
                 return;
             }
+
             // ELSE View is alive and we are alive
             //重要部分!
-            //调用ViewVisitor 中的visit方法(未被子类重写)
+            //调用EventTriggeringVisitor 中的visit方法(未被子类重写,实现在ViewVisitor)
             //具体实现交给了PathFinder 的findTargetsInRoot方法
+            // mEdit 是 EventTriggeringVisitor 类型的
             mEdit.visit(viewRoot);
             //移除当前消息队列中的Runnable
             mHandler.removeCallbacks(this);
@@ -214,16 +243,17 @@ import java.util.Set;
 
         public void kill() {
             mDying = true;
+            // 需要在run()方法中 做一些 清除 AccesibilityDelegate 的操作
             mHandler.post(this);
         }
 
         @SuppressWarnings("deprecation")
         private void cleanUp() {
-            //当前存活
+            //当前存活,所以需要去除一些状态
             if (mAlive) {
                 final View viewRoot = mViewRoot.get();
                 if (null != viewRoot) {
-                    //移除GlobalOnLayoutListener,其监听着控件
+                    //移除GlobalOnLayoutListener,其监听着控件布局变换
                     final ViewTreeObserver observer = viewRoot.getViewTreeObserver();
                     if (observer.isAlive()) {
                         observer.removeGlobalOnLayoutListener(this); // Deprecated Name
@@ -244,9 +274,17 @@ import java.util.Set;
          * 当前循环是否继续
          */
         private boolean mAlive;
+        /**
+         * 正常情况下是 DecorView
+         * <p>
+         * *
+         */
         private final WeakReference<View> mViewRoot;
         /**
-         * AccessibilityDelegate
+         * EventTriggeringVisitor
+         * <p>
+         * 具体类型如下: 这个不是具体的 delegate类,而是 辅助设置delegate的类
+         * EventTriggeringVisitor
          * 1. AddAccessibilityEventVisitor
          * 2. AddTextChangeListener
          * 3. ViewDetectorVisitor
@@ -270,6 +308,8 @@ import java.util.Set;
     private final Map<String, List<ViewVisitor>> mIntendedEdits;
     /**
      * 当前的绑定的信息,控件对应的事件
+     * <p>
+     * EventTriggeringVisitor,RootView,Handler(in main thread) 等信息 会被封装到 EditBinding 对象中
      */
     private final Set<EditBinding> mCurrentEdits;
 

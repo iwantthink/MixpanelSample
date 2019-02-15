@@ -99,7 +99,7 @@ import java.util.List;
          */
         public final String viewClassName;
         /**
-         *
+         * Path 中的 index 字段...
          */
         public final int index;
         /**
@@ -122,45 +122,66 @@ import java.util.List;
     }
 
     /**
+     * 在根View中找到匹配的控件
+     * <p>
+     * Accumulator接口 被  ViewVisitor 实现了,具体实现交给了具体的子类
+     * <p>
+     * EventTriggeringVisitor(父类是 ViewVisitor) 类型
+     * 1. AddAccessibilityEventVisitor
+     * 2. AddTextChangeListener
+     * 3. ViewDetectorVisitor
+     *
      * @param givenRootView DecorView.getRootView
-     * @param path
+     * @param path          路径
      * @param accumulator
      */
     public void findTargetsInRoot(View givenRootView,
                                   List<PathElement> path,
                                   Accumulator accumulator) {
 
-        //Path必须得非空,不然没有意义
+        //Path必须得非空,不然无法查询
         if (path.isEmpty()) {
             return;
         }
-        //同时进行 findTargetsInRoot 有限制 ,不能超过stack的最大容量256
+
+        //TODO 可能出现并发问题.. 但是尚未发现原因
         if (mIndexStack.full()) {
-            MPLog.w(LOGTAG, "There appears to be a concurrency issue in the pathfinding code. Path will not be matched.");
+            MPLog.w(LOGTAG, "There appears to be a concurrency issue in the pathfinding code." +
+                    " Path will not be matched.");
             return; // No memory to perform the find.
         }
         // 获取Path的第一部分
-        //{"prefix":"shortest","index":0,"id":16908290}
-        //{"view_class":"android.support.constraint.ConstraintLayout","index":0}
-        //{"index":0,"id":2131230759}
+        //  [{"prefix":"shortest","index":0,"id":16908290}
+        //  {"view_class":"android.support.constraint.ConstraintLayout","index":0}
+        //  {"index":0,"id":2131230759}]
         final PathElement rootPathElement = path.get(0);
         //剩下的Path....
         final List<PathElement> childPath = path.subList(1, path.size());
         // 取出IndexStack 中未使用的一个元素来使用, 返回其index
         final int indexKey = mIndexStack.alloc();
         //Path第一部分 进行匹配
+        // 对RootView进行匹配
         final View rootView = findPrefixedMatch(rootPathElement, givenRootView, indexKey);
         // 释放 alloc 返回的那个index,
         // alloc 和 free 需要成对调用,并且一旦free调用了  alloc 返回的那个index 立马被当做无效
         mIndexStack.free();
-        //如果第一部分存在了,那么接着下面的匹配
+
+        //如果路径的第一部分匹配成功,那么继续后续路径的匹配
+        // 路径估计都>=2
         if (null != rootView) {
             findTargetsInMatchedView(rootView, childPath, accumulator);
         }
     }
 
     /**
-     * 在路径第一层匹配成功后返回的那个view中继续匹配接下来的Path
+     * 在路径prefix匹配成功后,会返回一个view
+     * 那么这个方法就是在 这个view中继续匹配接下来的Path
+     *
+     *
+     * EventTriggeringVisitor(父类是 ViewVisitor) 类型
+     *      1. AddAccessibilityEventVisitor   ->>>TrackingAccessibilityDelegate
+     *      2. AddTextChangeListener  ->>> TextWatcher
+     *      3. ViewDetectorVisitor  ->>> 变量
      *
      * @param alreadyMatched
      * @param remainingPath
@@ -171,10 +192,14 @@ import java.util.List;
                                           Accumulator accumulator) {
         // When this is run, alreadyMatched has already been matched to a path prefix.
         // path is a possibly empty "remaining path" suffix left over after the match
-        // 剩余空,则说明已经匹配成功
+        // 当运行到这里时,说明alreadyMatched 这个View 已经和 path prefix 匹配成功
+        // 剩余的path如果为空,则说明已经匹配成功
         if (remainingPath.isEmpty()) {
             // Nothing left to match- we're found!
             // 对匹配成功的控件设置Delegate
+            // 1. TrackingAccessibilityDelegate
+            // 2. TextWatcher
+            // 3. 变量...
             accumulator.accumulate(alreadyMatched);
             return;
         }
@@ -227,26 +252,36 @@ import java.util.List;
 
     /**
      * 找到当前view视图中第一个匹配路径的控件
+     * 这个方法可能被递归调用
+     * 正常 第一个传入的 subject 参数会是 DecorView
+     * 后续的 subject 应该 就是 其子类...
      *
      * @param findElement 路径,
-     * @param subject     正常情况下是,DecorView
+     * @param subject
      * @param indexKey    Stack中分配给当前控件的index
      * @return
      */
     private View findPrefixedMatch(PathElement findElement, View subject, int indexKey) {
-        //从 IndexStack 中获取 对应index的值,应该是0
+        //从 IndexStack 中获取 对应index的值,alloc应该是0
         final int currentIndex = mIndexStack.read(indexKey);
-        //找到匹配的 控件
+
+        // 从四个条件  className viewID contentDescription  TAG
+        // 去判断 subject 是否匹配
         if (matches(findElement, subject)) {
             //匹配成功
-            //指定index的 值++
+            //指定index的 值++, 变成 1
             mIndexStack.increment(indexKey);
-            // 过滤条件中的 index 值为-1 ,或者 与当前index相同 ,则返回当前控件
-            if (findElement.index == -1 || findElement.index == currentIndex) {
+
+            //TODO 这里的index 字段的作用 比较的重要,到底是从client 上传的还是 server生成的
+            // 路径中的 index 字段,如果值为-1 ,或者与当前index相同 ,则返回当前控件
+            if (findElement.index == -1 ||
+                    findElement.index == currentIndex) {
                 return subject;
             }
         }
         // 对路径的Prefix进行判断
+        // 首先 路径中的prefix 必须得是 SHORTEST_PREFIX
+        // 这样 会对子类中 每一个ViewGroup  都进行遍历寻找
         if (findElement.prefix == PathElement.SHORTEST_PREFIX &&
                 subject instanceof ViewGroup) {
             //从其子类中找到 匹配 路径的 View并返回
@@ -254,6 +289,8 @@ import java.util.List;
             final int childCount = group.getChildCount();
             for (int i = 0; i < childCount; i++) {
                 final View child = group.getChildAt(i);
+                // 递归调用当前方法...
+                // 返回的result 就是匹配成功的值
                 final View result = findPrefixedMatch(findElement, child, indexKey);
                 if (null != result) {
                     return result;
@@ -265,7 +302,7 @@ import java.util.List;
     }
 
     /**
-     * 如果过滤条件中 存在 一下五个条件,那么就会对其进行判断,如果没有则不判断
+     * 如果过滤条件中 存在 以下四个条件,那么就会对其进行判断,如果没有则不判断
      * className viewID contentDescription  TAG!
      * =====================================================
      * 一级过滤条件:
@@ -276,33 +313,39 @@ import java.util.List;
      * @return
      */
     private boolean matches(PathElement matchElement, View subject) {
-        // 过滤条件的viewClassName不为空
-        // 目标控件的className 与 过滤条件的className 不相同
+        // 过滤条件的viewClassName不为空时
+        // 去比较 目标控件的className 与 过滤条件的className 是否相同
+        // subject 的父类匹配成功也算成功
         if (null != matchElement.viewClassName &&
                 !hasClassName(subject, matchElement.viewClassName)) {
-            return false;
-        }
-        //过滤条件的viewID不能为-1
-        //目标控件的viewId 与 过滤条件的VeiwID 不同
-        if (-1 != matchElement.viewId && subject.getId() != matchElement.viewId) {
+            // className 匹配失败
             return false;
         }
 
-        //过滤条件的 contentDescription 不能为空
-        //目标控件的 contentDescription 和 过滤条件的 contentDescription 不相等
+        //过滤条件的viewID不为-1时
+        // 判断目标控件的viewId 与 过滤条件的VeiwID 是否不同
+        if (-1 != matchElement.viewId && subject.getId() != matchElement.viewId) {
+            // id 匹配失败
+            return false;
+        }
+
+        //过滤条件的 contentDescription 不为空时
+        // 判断目标控件的 contentDescription 和 过滤条件的 contentDescription 是否相同
         if (null != matchElement.contentDescription &&
                 !matchElement.contentDescription.equals(subject.getContentDescription())) {
+            // contentDescription 匹配失败
             return false;
         }
 
-        //取出过滤条件中的 tag
+        //取出路径中的 tag
         final String matchTag = matchElement.tag;
-        // 过滤条件有tag时 才去进行匹配
+        // 路径有tag时 才去进行匹配
         if (null != matchElement.tag) {
-            //取出目标控件的tag
+            // 取出目标控件的tag
             final Object subjectTag = subject.getTag();
             //目标控件TAG 为空  或者  过滤条件和目标控件的TAG 不匹配
             if (null == subjectTag || !matchTag.equals(subject.getTag().toString())) {
+                // tag匹配失败
                 return false;
             }
         }
@@ -351,7 +394,8 @@ import java.util.List;
         }
 
         /**
-         * Pushes a new value, and returns the index you can use to increment and read that value later.
+         * Pushes a new value,
+         * and returns the index you can use to increment and read that value later.
          */
         public int alloc() {
             final int index = mStackSize;
@@ -364,7 +408,8 @@ import java.util.List;
         }
 
         /**
-         * Gets the value associated with index. index should be the result of a previous call to alloc()
+         * Gets the value associated with index.
+         * index should be the result of a previous call to alloc()
          */
         public int read(int index) {
             return mStack[index];
@@ -375,7 +420,8 @@ import java.util.List;
         }
 
         /**
-         * Should be matched to each call to alloc. Once free has been called, the key associated with the
+         * Should be matched to each call to alloc.
+         * Once free has been called, the key associated with the
          * matching alloc should be considered invalid.
          */
         public void free() {

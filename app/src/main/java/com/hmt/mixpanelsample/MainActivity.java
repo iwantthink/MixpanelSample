@@ -52,30 +52,6 @@ public class MainActivity extends AppCompatActivity {
         mBtnToast.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-//                Toast.makeText(mContext, "clicked ", Toast.LENGTH_SHORT).show();
-
-//                WindowManager manager = getWindowManager();
-//                DisplayMetrics metrics = new DisplayMetrics();
-//                manager.getDefaultDisplay().getMetrics(metrics);
-//                int width = metrics.widthPixels;
-//                int height = metrics.heightPixels;
-//                Log.d("MainActivity", "width:" + width);
-//                Log.d("MainActivity", "height:" + height);
-//
-//                View rootView = getWindow().getDecorView().getRootView();
-//                float x = rootView.getX();
-//                float y = rootView.getY();
-//                Log.d("MainActivity", "x:" + x);
-//                Log.d("MainActivity", "y:" + y);
-//                Log.d("MainActivity", "rootView.getWidth():" + rootView.getWidth());
-//                Log.d("MainActivity", "rootView.getHeight():" + rootView.getHeight());
-
-
-//                mBtnToast.setBackgroundColor(Color.RED);
-
-//                startActivity(new Intent(mContext, TestEListView.class));
-
-//                reflectDisplay(mContext);
 
                 View content = findViewById(android.R.id.content);
                 while (content.getParent() != null) {
@@ -117,6 +93,12 @@ public class MainActivity extends AppCompatActivity {
 //            }
 //        });
 
+        findViewById(R.id.btn_go2seconed).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SeconedActivity.start(MainActivity.this);
+            }
+        });
 
 
     }

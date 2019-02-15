@@ -847,6 +847,8 @@ import javax.net.ssl.SSLSocketFactory;
         private final Object mHandlerLock = new Object();
         /**
          * AnalyticsMessageHandler
+         * <p>
+         * 运行在子线程中
          */
         private Handler mHandler;
         private long mFlushCount = 0;

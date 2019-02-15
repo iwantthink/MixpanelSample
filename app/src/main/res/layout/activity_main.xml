@@ -18,10 +18,10 @@
         android:layout_height="wrap_content"></LinearLayout>
 
     <TextView
-        android:layout_marginTop="123dp"
         android:id="@+id/tv_text"
         android:layout_width="wrap_content"
         android:layout_height="50dp"
+        android:layout_marginTop="123dp"
         android:clickable="true"
         android:text="Hello World!"/>
 
@@ -45,6 +45,12 @@
         android:text="无ID控件"
         app:layout_constraintTop_toBottomOf="@id/btn_toast"/>
 
+    <Button
+        android:id="@+id/btn_go2seconed"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="跳转至Seconed页面"
+        />
 
 
 </android.support.constraint.ConstraintLayout>

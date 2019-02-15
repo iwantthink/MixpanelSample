@@ -342,6 +342,7 @@ public class MixpanelAPI {
         }
 
         //注册声明周期回调
+        // 在创建ViewCrawler 的构造函数中,也注册了生命周期回调监听LifecycleCallbacks
         registerMixpanelActivityLifecycleCallbacks();
 
         //判断是否禁止发送App_Open事件
@@ -393,6 +394,7 @@ public class MixpanelAPI {
 
         }
         // 开始处理一些数据,加载缓存的event 事件
+        // 开启数据抓取
         mUpdatesFromMixpanel.startUpdates();
         // 开启 异常捕获...
         ExceptionHandler.init();

@@ -380,32 +380,43 @@ import java.util.WeakHashMap;
          */
         @Override
         public void cleanup() {
+            //  遍历删除,直到所有的SDK设置的Delegate 都被删除
             for (final Map.Entry<View, TrackingAccessibilityDelegate> entry :
                     mWatching.entrySet()) {
                 //获取到控件
                 final View v = entry.getKey();
-                //获取到控件对应的SDK设置的 AccesibilityDelegate
+                /**
+                 * 待删除的 sdk设置的 AccesibilityDelegate
+                 */
                 final TrackingAccessibilityDelegate toCleanup = entry.getValue();
-                //获取控件当前的delegate
+
+                /**
+                 * 控件当前的delegate
+                 */
                 final View.AccessibilityDelegate currentViewDelegate = getOldDelegate(v);
 
-                //判断俩者是否相同,如果相同,则说明 当前 view的 delegate 就是sdk设置的
+                //与已经设置的SDK-delegate进行比较,
+                // 如果相同,则说明 当前 view的 delegate 就是sdk设置的那个,那么恢复原先的状态
                 if (currentViewDelegate == toCleanup) {
-                    //如果相同,则取出之前创建Delegate时 传入的真正的delegate
+
+                    // 如果相同,则取出之前创建Delegate时传入的本来就存在的delegate
+                    // 如果存在的话..
                     v.setAccessibilityDelegate(toCleanup.getRealDelegate());
+
                     //SDK设置的delegate 与 view的当前的 delegate不相同
-                    //但是 当前的delegate 确实是 sdk设置的
-                    //这说明可能是嵌套的 sdk设置的delegeate(分别对应不同的事件)
+                    //但是 当前的delegate 确实是 sdk设置的(通过类型判断)
+                    //这说明可能是因为  sdk-delegate1 嵌套了 sdk-delegate2(分别对应不同的事件)
                 } else if (currentViewDelegate instanceof TrackingAccessibilityDelegate) {
                     final TrackingAccessibilityDelegate newChain =
                             (TrackingAccessibilityDelegate) currentViewDelegate;
-                    //从嵌套的delegate链中 移除 sdk-delegate
+                    //从当前的sdk-delegate链中 移除 sdk-delegate
                     newChain.removeFromDelegateChain(toCleanup);
                 } else {
                     // Assume we've been replaced, zeroed out, or for some other reason we're already gone.
                     // (This isn't too weird, for example, it's expected when views get recycled)
                 }
             }
+            //清空保存 控件- AccessibilityDelegate 关系的集合
             mWatching.clear();
         }
 
@@ -416,25 +427,35 @@ import java.util.WeakHashMap;
          */
         @Override
         public void accumulate(View found) {
-            //获取已经存在的delegate,即非SDK设置的,可能来自用户或者系统,可能为空
+            //获取found 这个vide 当前的delegate,
+            // 可能是非SDK设置的,即来自用户或者系统
+            // 也可能是 sdk设置的
+            // 也可能为空
             final View.AccessibilityDelegate realDelegate = getOldDelegate(found);
-            //判断是否是 SDK设置的delegate
+
+            //判断已经存在的delegate类型 是否是SDK设置的TrackingAccessibilityDelegate
             if (realDelegate instanceof TrackingAccessibilityDelegate) {
+
                 final TrackingAccessibilityDelegate currentTracker =
                         (TrackingAccessibilityDelegate) realDelegate;
                 //判断已经存在的这个 delegate 是否抓取 当前的事件
+                // 防止重复设置
                 if (currentTracker.willFireEvent(getEventName())) {
                     return; // Don't double track
                 }
                 // 已经存在的这个delegate 不抓取当前事件,所以需要新增delegate
             }
 
+            // 运行到这里,说明 realDelegate 为空 或非SDK 设置 或 sdk设置(但是事件不匹配)
+
             // We aren't already in the tracking call chain of the view
-            // SDK创建一个Delegate,用来抓取事件,会传入非SDK设置的delegate
+            // 创建一个sdk-Delegate(TrackingAccessibilityDelegate),
+            // 用来抓取事件,会传入 之前已经存在的 delegate....
             final TrackingAccessibilityDelegate newDelegate =
                     new TrackingAccessibilityDelegate(realDelegate);
             //将sdk的delegate 设置为当前delegate
             found.setAccessibilityDelegate(newDelegate);
+            // Delegate 和View的关系 保存
             mWatching.put(found, newDelegate);
         }
 
@@ -444,7 +465,12 @@ import java.util.WeakHashMap;
         }
 
         /**
-         * 获取已经存在的View-AccessibilityDelegate
+         * 通过反射获取当前的View-AccessibilityDelegate
+         * <p>
+         * 获取已经存在的delegate,
+         * 1. 可能是非SDK设置的,即来自用户或者系统
+         * 2. 可能是 sdk设置的
+         * 3. 可能为空
          *
          * @param v
          * @return
@@ -466,8 +492,22 @@ import java.util.WeakHashMap;
             return ret;
         }
 
+
+        /**
+         * AddAccessibilityEventVisitor 的内部类
+         * <p>
+         * 每个AddAccessibilityEventVisitor 都会对应一个event_name
+         */
         private class TrackingAccessibilityDelegate extends View.AccessibilityDelegate {
 
+            /**
+             * realDelegate 是之前已经存在的 Delegate....
+             * 1. 可能空
+             * 2. 可能非SDK设置
+             * 3. 可能SDK设置
+             *
+             * @param realDelegate
+             */
             public TrackingAccessibilityDelegate(View.AccessibilityDelegate realDelegate) {
                 mRealDelegate = realDelegate;
             }
@@ -477,24 +517,39 @@ import java.util.WeakHashMap;
             }
 
             public boolean willFireEvent(final String eventName) {
+                // 判断当前 Delegate 是否抓取该事件
                 if (getEventName() == eventName) {
                     return true;
+
+                    // 判断嵌套的 delegate 是否抓取
                 } else if (mRealDelegate instanceof TrackingAccessibilityDelegate) {
+                    // 递归...
                     return ((TrackingAccessibilityDelegate) mRealDelegate).willFireEvent(eventName);
                 } else {
                     return false;
                 }
             }
 
+            /**
+             * 嵌套只可能是出现在  自定义的 TrackingAccessibilityDelegate中
+             *
+             * @param other
+             */
             public void removeFromDelegateChain(final TrackingAccessibilityDelegate other) {
-                //判断 非sdk的delegate 是否和 other相同
-                //这说明 当前处于嵌套情况
+                // 如果 当前delegate中的嵌套delegate 和 传入的相同
+                // 说明 这个传入的delegate 被嵌套在了 当前 delegate中..
                 if (mRealDelegate == other) {
+                    //  other 中可能还有 嵌套的 delegate....
+                    // 再次通过 getRealDelegate 取出
                     mRealDelegate = other.getRealDelegate();
+
+
                     //俩者不相同,但是 realDelegate还是 SDK-delegate类型,这说明 还有一层嵌套
                     //那么继续进行嵌套的删除
                 } else if (mRealDelegate instanceof TrackingAccessibilityDelegate) {
-                    final TrackingAccessibilityDelegate child = (TrackingAccessibilityDelegate) mRealDelegate;
+                    final TrackingAccessibilityDelegate child =
+                            (TrackingAccessibilityDelegate) mRealDelegate;
+                    // 递归了... 直到找到对应的那个, 然后将 默认的 delegate(可能空,可能非SDK设置) 重新赋值给控件
                     child.removeFromDelegateChain(other);
                 } else {
                     // We can't see any further down the chain, just return.
@@ -526,7 +581,7 @@ import java.util.WeakHashMap;
          */
         private final int mEventType;
         /**
-         * 控件 - AccessibilityDelegate 之间的关系
+         * 保存View - AccessibilityDelegate 之间的关系
          */
         private final WeakHashMap<View, TrackingAccessibilityDelegate> mWatching;
     }
@@ -534,6 +589,8 @@ import java.util.WeakHashMap;
     /**
      * Installs a TextWatcher in each matching view.
      * Does nothing if matching views are not TextViews.
+     * <p>
+     * 仅针对TextView有效,其余控件类型都无效
      */
     public static class AddTextChangeListener extends EventTriggeringVisitor {
         public AddTextChangeListener(List<Pathfinder.PathElement> path, String eventName, OnEventListener listener) {
@@ -554,13 +611,17 @@ import java.util.WeakHashMap;
 
         @Override
         public void accumulate(View found) {
+            // 仅针对 TextView
             if (found instanceof TextView) {
                 final TextView foundTextView = (TextView) found;
+                // 创建TextWatcher
                 final TextWatcher watcher = new TrackingTextWatcher(foundTextView);
                 final TextWatcher oldWatcher = mWatching.get(foundTextView);
+                // 移除旧的...
                 if (null != oldWatcher) {
                     foundTextView.removeTextChangedListener(oldWatcher);
                 }
+                // 设置新的
                 foundTextView.addTextChangedListener(watcher);
                 mWatching.put(foundTextView, watcher);
             }
@@ -591,6 +652,7 @@ import java.util.WeakHashMap;
                 fireEvent(mBoundTo);
             }
 
+            // 绑定到的控件
             private final View mBoundTo;
         }
 
@@ -600,9 +662,13 @@ import java.util.WeakHashMap;
     /**
      * Monitors the view tree for the appearance of matching views where there were not
      * matching views before. Fires only once per traversal.
+     * <p>
+     * 监听视图树中出现的 之前没有匹配的控件
      */
     public static class ViewDetectorVisitor extends EventTriggeringVisitor {
-        public ViewDetectorVisitor(List<Pathfinder.PathElement> path, String eventName, OnEventListener listener) {
+        public ViewDetectorVisitor(List<Pathfinder.PathElement> path,
+                                   String eventName,
+                                   OnEventListener listener) {
             super(path, eventName, listener, false);
             mSeen = false;
         }
@@ -629,6 +695,10 @@ import java.util.WeakHashMap;
         private boolean mSeen;
     }
 
+
+    /**
+     * 抽象类, 交给子类去实现
+     */
     private static abstract class EventTriggeringVisitor extends ViewVisitor {
 
         public EventTriggeringVisitor(List<Pathfinder.PathElement> path,
@@ -653,7 +723,7 @@ import java.util.WeakHashMap;
         }
 
         /**
-         * 返回事件名称
+         * 返回事件名称,在创建时 就需要传入
          *
          * @return
          */
@@ -676,13 +746,20 @@ import java.util.WeakHashMap;
     }
 
     /**
-     * 通过PathFinder 去寻找rootView下面的符合匹配规则的view,并添加AccessibilityDelegate
+     * 通过PathFinder 去寻找rootView下面的符合匹配规则的view,借助 EventTriggeringVisitor 并添加AccessibilityDelegate
+     * <p>
+     * EventTriggeringVisitor 类型
+     * * 1. AddAccessibilityEventVisitor
+     * * 2. AddTextChangeListener
+     * * 3. ViewDetectorVisitor
      * <p>
      * Scans the View hierarchy below rootView,
      * applying it's operation to each matching child view.
      */
     public void visit(View rootView) {
-        //Accumulator 接口  accumulate 方法,具体的实现类回去实现这个方法
+        //Accumulator 接口  accumulate 方法,具体的实现类会去实现这个方法
+        // ViewVisitor 实现了这个接口,但没有重写,交给了子类
+        //
         mPathfinder.findTargetsInRoot(rootView, mPath, this);
     }
 

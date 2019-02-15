@@ -124,7 +124,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
     public void startUpdates() {
         // 启用MessageThreadHandler, 释放lock ,允许Handler 去处理 msg
         mMessageThreadHandler.start();
-        //加载本地Event数据!
+        // 加载本地Event数据!
+        // 第一次执行
         applyPersistedUpdates();
     }
 
@@ -241,6 +242,9 @@ public class ViewCrawler implements UpdatesFromMixpanel,
         private volatile boolean mStopped;
     }
 
+    /**
+     * 该生命周期 早于 MixpanelAPI 构造函数那个注册
+     */
     private class LifecycleCallbacks implements
             Application.ActivityLifecycleCallbacks,
             FlipGesture.OnFlipGestureListener {
@@ -406,6 +410,15 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             mStartLock.unlock();
         }
 
+
+        /**
+         * 调用顺序
+         * 1. MESSAGE_INITIALIZE_CHANGES
+         * 2. MESSAGE_EVENT_BINDINGS_RECEIVED
+         * 2. MESSAGE_PERSIST_VARIANTS_RECEIVED
+         *
+         * @param msg
+         */
         @Override
         public void handleMessage(Message msg) {
             //同步锁
@@ -416,7 +429,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 switch (what) {
                     // 在MixpanelApi 的 构造函数中 被调用
                     case MESSAGE_INITIALIZE_CHANGES:
-                        MPLog.v("ViewCrawlerHandler", "MESSAGE_INITIALIZE_CHANGES,loadKnownChanges");
+                        MPLog.v("ViewCrawlerHandler",
+                                "MESSAGE_INITIALIZE_CHANGES,loadKnownChanges");
                         // 加载本地的缓存数据,例如 AB ,tweaks,Event bindings 等信息
                         loadKnownChanges();
                         break;
@@ -498,9 +512,10 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          */
         private void loadKnownChanges() {
             final SharedPreferences preferences = getSharedPreferences();
+            // 获取 variants...
             final String storedChanges = preferences.getString(SHARED_PREF_CHANGES_KEY,
                     null);
-            //获取缓存的 绑定事件
+            //获取缓存的 event_binding
             final String storedBindings = preferences.getString(SHARED_PREF_BINDINGS_KEY,
                     null);
 
@@ -508,13 +523,14 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             mAppliedTweaks.clear();
             mSeenExperiments.clear();
             // 解析variants 字符串
-            loadVariants(storedChanges, false);
-            // 清空本地的event binding 数据
+            loadVariants(storedChanges,
+                    false);
+
+            // 清空缓存中的event binding 数据
             mPersistentEventBindings.clear();
 
-
-            // 解析json,保存到成员变量中去备用(加载到内存中)
-            // 加载Event事件
+            // 解析json,保存到成员变量中去备用(保存到 mPersistentEventBindings)
+            // 加载event_binding
             loadEventBindings(storedBindings);
 
             applyVariantsAndEventBindings();
@@ -535,6 +551,11 @@ public class ViewCrawler implements UpdatesFromMixpanel,
 
         /**
          * 将 variants 进行解析加载到内存中,保存在不同的集合中
+         * <p>
+         * 将actions字段的内容 保存到 mAppliedVisualChanges
+         * 将tweaks字段的内容 保存到 mAppliedTweaks
+         * id, experiment_id 组成的pair,在不是新的variants时 保存到 mSeenExperiments
+         * id, experiment_id 朱成成的pair 为空 则保存到 mEmptyExperiments
          *
          * @param variants
          * @param newVariants
@@ -609,7 +630,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
         /**
          * 解析json, 保存到mPersisitentEventBindings[Set]中
          * <p>
-         * activityName  -----  事件
+         * activityName  -----  事件(json_obj)
          *
          * @param eventBindings
          */
@@ -1118,6 +1139,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             }
 
             // A/B 测试
+            // 对variants 中的 tweaks 字段内容进行解析
             {
                 for (VariantTweak tweakInfo : mAppliedTweaks) {
                     try {
@@ -1154,6 +1176,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 }
             }
 
+            // 来自web编辑页面的 内容 , variants
             {
                 for (MPPair<String, JSONObject> changeInfo : mEditorChanges.values()) {
                     try {
@@ -1180,16 +1203,18 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 }
             }
 
+            // MESSAGE_INITIALIZE_CHANGES 时, 会加载本地的内容
             {
                 if (mEditorEventBindings.size() == 0 && mOriginalEventBindings.size() == 0) {
                     //activityName -  事件信息
                     //mPersistentEventBindings 是未解析的 eventbinding事件
                     // 需要进行处理
+                    // activityName-事件信息
                     for (MPPair<String, JSONObject> changeInfo : mPersistentEventBindings) {
                         try {
                             // 创建ViewVisitor ,每个事件对应一个ViewVisitor
-                            // 对应 EventTriggeringVisitor 对象(继承自ViewVisitor)
                             //
+                            // 解析事件信息 得到 对应的 EventTriggeringVisitor 对象(继承自ViewVisitor)
                             final ViewVisitor visitor =
                                     mProtocol.readEventBinding(changeInfo.second,
                                             mDynamicEventTracker);
@@ -1206,6 +1231,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 }
             }
 
+            // 处理来自 web编辑页面的 event_binding
             {
                 for (MPPair<String, JSONObject> changeInfo :
                         mEditorEventBindings.values()) {
@@ -1222,7 +1248,10 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             }
 
             //ActivityName 对应 该Activity下的 ViewVisitor集合
-            final Map<String, List<ViewVisitor>> editMap = new HashMap<String, List<ViewVisitor>>();
+            // 包含variants 和 event_bindings
+            final Map<String, List<ViewVisitor>> editMap =
+                    new HashMap<String, List<ViewVisitor>>();
+
             final int totalEdits = newVisitors.size();
             for (int i = 0; i < totalEdits; i++) {
                 // ActivityName  - ViewVisitor
@@ -1241,7 +1270,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 //将ActivityName对应的ViewVisitor   放入List中
                 mapElement.add(next.second);
             }
-            //开启循环,将 ViewVisitor传入
+            //开启循环,将 EventTriggeringVisitor  传入
             mEditState.setEdits(editMap);
 
             Log.e("ViewCrawlerHandler", "mEditState.setEdits(editMap),key size =  " + editMap.keySet().size());
@@ -1328,6 +1357,13 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * 可视化的改变 , AB测试
          */
         private final Set<VariantChange> mAppliedVisualChanges;
+        /**
+         * variants 中的 tweaks字段的内容
+         * <p>
+         * 在loadVariants 中被赋值
+         * <p>
+         * A/B测试
+         */
         private final Set<VariantTweak> mAppliedTweaks;
         private final Set<MPPair<Integer, Integer>> mEmptyExperiments;
         /**
@@ -1336,7 +1372,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * 由event json 解析而来... 路径信息
          *
          * <p>
-         * ActivityName  -  事件信息
+         * ActivityName  -  事件信息(JsonObject)
          */
         private final Set<MPPair<String, JSONObject>> mPersistentEventBindings;
         private final Set<MPPair<String, JSONObject>> mOriginalEventBindings;

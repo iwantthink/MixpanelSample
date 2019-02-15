@@ -70,6 +70,7 @@ import java.util.Locale;
         if (android.os.Build.VERSION.SDK_INT >= MPConfig.UI_FEATURES_MIN_API
                 && mConfig.getAutoShowMixpanelUpdates()) {
             // 从mDecideMessages获取variant,保存到 ViewCrawler
+            // 这里能够调用到 EditState .setEdits  将会更新 EditBinding 的循环状态....
             mMpInstance.getPeople().joinExperimentIfAvailable();
         }
         mPaused = false;

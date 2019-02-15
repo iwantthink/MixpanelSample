@@ -7,4 +7,12 @@
     android:layout_height="match_parent"
     tools:context="com.hmt.mixpanelsample.SeconedActivity">
 
+
+    <Button
+        android:id="@+id/btn_ssss"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="测试"
+        />
+
 </android.support.constraint.ConstraintLayout>
