@@ -176,6 +176,7 @@ import java.util.List;
     /**
      * 在路径prefix匹配成功后,会返回一个view
      * 那么这个方法就是在 这个view中继续匹配接下来的Path
+     * 这个方法会被递归调用..直到找到子类中匹配的..
      *
      *
      * EventTriggeringVisitor(父类是 ViewVisitor) 类型
@@ -192,6 +193,7 @@ import java.util.List;
                                           Accumulator accumulator) {
         // When this is run, alreadyMatched has already been matched to a path prefix.
         // path is a possibly empty "remaining path" suffix left over after the match
+
         // 当运行到这里时,说明alreadyMatched 这个View 已经和 path prefix 匹配成功
         // 剩余的path如果为空,则说明已经匹配成功
         if (remainingPath.isEmpty()) {
@@ -208,7 +210,7 @@ import java.util.List;
         //如果不是ViewGroup 那么就没有子类了...
         if (!(alreadyMatched instanceof ViewGroup)) {
             // Matching a non-empty path suffix is impossible, because we have no children
-            // 这种情况对应的是子路径为空了,因为匹配出来的View 本身就没有子类了!
+            // 如果没有子类, 那么就无法 利用 接下来的 path suffix 去进行匹配
             return;
         }
         // 判断路径深度!!! 如果已经达到256 直接gg
@@ -219,26 +221,37 @@ import java.util.List;
         }
 
         final ViewGroup parent = (ViewGroup) alreadyMatched;
+        // 获取剩下的PathElement
         final PathElement matchElement = remainingPath.get(0);
+        // 继续截取...
         final List<PathElement> nextPath = remainingPath.subList(1, remainingPath.size());
-
+        // 获取子类数量
         final int childCount = parent.getChildCount();
+        // 分配栈中的一个地址,赋值为0
         final int indexKey = mIndexStack.alloc();
         //遍历子类
         for (int i = 0; i < childCount; i++) {
             final View givenChild = parent.getChildAt(i);
             //找到符合路径规则的 view
-            //这一步是进行匹配
+            //这一步是进行匹配,利用剩下的Path 去匹配....
             final View child = findPrefixedMatch(matchElement, givenChild, indexKey);
+            // 匹配又成功了...
             if (null != child) {
                 //这一步是进行下一层path的匹配,等待Path为空,直接设置Delegate
+                // 在这个方法里 就会可以选择跳出
                 findTargetsInMatchedView(child, nextPath, accumulator);
             }
             //如果child为空,则意味着第一个child不符合条件
-            //这里用来接着是否 接着判断下一个子类
-            //index 通常为0 ,所以第一个条件通常成立
+            //这里用来 接着判断下一个子类
+
+            //判断路径中的index 是否>=0...
+            //          index 通常为0 ,所以第一个条件通常成立
+
             //然后会判断 stack[index]的位置 是否匹配成功?? 如果成功 那就直接结束循环了
-            if (matchElement.index >= 0 && mIndexStack.read(indexKey) > matchElement.index) {
+            // 如果 mIndexStack 中 indexKey位置的值 = 1....
+            // 就是说明 已经找到了指定的 child... 那么剩下的也不需要继续执行了
+            if (matchElement.index >= 0 &&
+                    mIndexStack.read(indexKey) > matchElement.index) {
                 break;
             }
         }

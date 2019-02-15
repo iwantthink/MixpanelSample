@@ -65,6 +65,9 @@ import java.util.WeakHashMap;
      * Attempts to apply mutator to every matching view. Use this to update properties
      * in the view hierarchy. If accessor is non-null, it will be used to attempt to
      * prevent calls to the mutator if the property already has the intended value.
+     *
+     *
+     * 这个是AB测试的
      */
     public static class PropertySetVisitor extends ViewVisitor {
         public PropertySetVisitor(List<Pathfinder.PathElement> path, Caller mutator, Caller accessor) {
@@ -190,6 +193,9 @@ import java.util.WeakHashMap;
         }
     }
 
+    /**
+     * 这个是... AB测试的
+     */
     public static class LayoutUpdateVisitor extends ViewVisitor {
         public LayoutUpdateVisitor(List<Pathfinder.PathElement> path, List<LayoutRule> args,
                                    String name, OnLayoutErrorListener onLayoutErrorListener) {
@@ -681,6 +687,7 @@ import java.util.WeakHashMap;
         @Override
         public void accumulate(View found) {
             if (found != null && !mSeen) {
+                // 调用 回调..
                 fireEvent(found);
             }
 

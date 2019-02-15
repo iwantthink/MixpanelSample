@@ -37,11 +37,15 @@ import java.util.Map;
     @Override
     public void OnEvent(View v, String eventName, boolean debounce) {
         // Will be called on the UI thread
+        // 当前时间
         final long moment = System.currentTimeMillis();
+        // 属性
         final JSONObject properties = new JSONObject();
         try {
+            // 收集 指定View的 text信息,包括其子类(前提是控件 如果是textView类型)
             final String text = textPropertyFromView(v);
             properties.put("$text", text);
+            // 表示数据来自 event_binding...
             properties.put("$from_binding", true);
 
             // We may call track much later, but we'll be tracking something
@@ -53,6 +57,7 @@ import java.util.Map;
         // 去抖动
         if (debounce) {
             final Signature eventSignature = new Signature(v, eventName);
+            // 未发送的事件的 信息 ...一个bean类
             final UnsentEvent event = new UnsentEvent(eventName, properties, moment);
 
             // No scheduling mTask without holding a lock on mDebouncedEvents,
@@ -63,10 +68,12 @@ import java.util.Map;
                 final boolean needsRestart = mDebouncedEvents.isEmpty();
                 mDebouncedEvents.put(eventSignature, event);
                 if (needsRestart) {
+                    // 开启 SendDebouncedTask任务..
                     mHandler.postDelayed(mTask, DEBOUNCE_TIME_MILLIS);
                 }
             }
         } else {
+            // 直接将事件入队..
             mMixpanel.track(eventName, properties);
         }
     }
@@ -108,13 +115,16 @@ import java.util.Map;
      */
     private static String textPropertyFromView(View v) {
         String ret = null;
-
+        // 控件是TextView,获取其文本
         if (v instanceof TextView) {
             final TextView textV = (TextView) v;
             final CharSequence retSequence = textV.getText();
             if (null != retSequence) {
                 ret = retSequence.toString();
             }
+
+            //控件是ViewGroup, 遍历子类,收集text 信息
+            // 注意有上限  不超过 MAX_PROPERTY_LENGTH(128)
         } else if (v instanceof ViewGroup) {
             final StringBuilder builder = new StringBuilder();
             final ViewGroup vGroup = (ViewGroup) v;
@@ -175,6 +185,9 @@ import java.util.Map;
             timeSentMillis = timeSent;
         }
 
+        /**
+         * 事件生成的时间
+         */
         public final long timeSentMillis;
         /**
          * 事件名称
@@ -189,12 +202,18 @@ import java.util.Map;
     private final MixpanelAPI mMixpanel;
     /**
      * 处理与编辑页面交互的handler
+     *
+     * ViewCrawlerHandler (运行在单独线程)
+     *
      */
     private final Handler mHandler;
     private final Runnable mTask;
 
-    // List of debounced events, All accesses must be synchronized
-    // 签名 <-> 事件信息
+    /**
+     * 待去抖动的事件...
+     * 签名 <-> 事件信息
+     * List of debounced events, All accesses must be synchronized
+     */
     private final Map<Signature, UnsentEvent> mDebouncedEvents;
 
     private static final int MAX_PROPERTY_LENGTH = 128;
