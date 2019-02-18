@@ -86,10 +86,9 @@ import java.util.List;
      * 2. selected
      * 3. text_changed
      * 4. detected
-     *
-     *
+     * <p>
+     * <p>
      * source 包含 event_name event_type  path target_activity
-     *
      *
      * @param source
      * @param listener DynamicEventTracker
@@ -229,7 +228,24 @@ import java.util.List;
         return new Edit(visitor, assetsLoaded);
     }
 
+
+    /**
+     * 解析传入的 source(服务端的配置信息)
+     * <p>
+     * 配置信息中包含了目标类 (即要抓取某种类型的View,每个View哪些属性要被抓取 )
+     * 获取服务端下发的配置文件中 对属性的描述
+     * 客户端会通过这些描述 去针对指定的控件 获取指定的属性信息 或者设置属性信息
+     * <p>
+     * set/get 方法会保存到所生成的PropertyDescription 对象中
+     * <p>
+     * 会将待抓取的控件的信息解析之后,保存到ViewSnapshot 类中
+     *
+     * @param source
+     * @return
+     * @throws BadInstructionsException
+     */
     public ViewSnapshot readSnapshotConfig(JSONObject source) throws BadInstructionsException {
+        // 保存由配置文件中解析出来的 待抓取控件的相关信息
         final List<PropertyDescription> properties = new ArrayList<PropertyDescription>();
 
         try {
@@ -242,14 +258,13 @@ import java.util.List;
                 final String targetClassName = classDesc.getString("name");
                 //获取目标View的字节码
                 final Class<?> targetClass = Class.forName(targetClassName);
-                //获取目标View的一些属性
+                //获取目标View的一些属性,根据不同的View类型,会下发不同的属性要求
                 //importantForAccessibility,clickable,alpha,hidden,setVisibility,background等
                 final JSONArray propertyDescs = classDesc.getJSONArray("properties");
+                // 遍历每一个具体的属性, 去获取其 set/get 等方法的相关信息
                 for (int i = 0; i < propertyDescs.length(); i++) {
-                    //获取属性的描述
-                    //通过这些描述 去获取一些信息 或者设置一些信息
                     final JSONObject propertyDesc = propertyDescs.getJSONObject(i);
-                    //封装这些get 或者set信息
+                    //封装这个具体属性的 get 或者set信息
                     final PropertyDescription desc = readPropertyDescription(targetClass, propertyDesc);
                     properties.add(desc);
                 }
@@ -393,6 +408,14 @@ import java.util.List;
     }
 
     /**
+     * 解析配置文件中 指定控件的待抓取信息
+     * <p>
+     * 与get方法有关的信息会保存到 Caller 类对象中
+     * <p>
+     * 与set方法有关的信息 目前只有一个 方法名称..
+     * <p>
+     * 会将get/set 相关信息 最终 保存到 PropertyDescription 对象中,并返回
+     *
      * @param targetClass  目标View的字节码
      * @param propertyDesc 属性描述
      * @return

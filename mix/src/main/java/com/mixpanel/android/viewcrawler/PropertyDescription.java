@@ -3,6 +3,9 @@ package com.mixpanel.android.viewcrawler;
 /* package */ class PropertyDescription {
 
     /**
+     *
+     * 包含了控件信息以及控件的get/set方法的相关信息
+     *
      * @param name        属性名称
      * @param targetClass 目标View的字节码
      * @param accessor    get方法的相关信息

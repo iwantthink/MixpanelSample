@@ -56,7 +56,7 @@ import javax.net.ssl.SSLSocketFactory;
 
 /**
  * This class is for internal use by the Mixpanel API, and should
- * not be called directly by your code.
+ * not be called directly by your code. 控件爬虫.包含抓取控件的行为
  */
 @TargetApi(MPConfig.UI_FEATURES_MIN_API)
 public class ViewCrawler implements UpdatesFromMixpanel,
@@ -124,7 +124,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
     public void startUpdates() {
         // 启用MessageThreadHandler, 释放lock ,允许Handler 去处理 msg
         mMessageThreadHandler.start();
-        // 加载本地Event数据!
+        // 加载本地Event,variants数据!
         // 第一次执行
         applyPersistedUpdates();
     }
@@ -316,7 +316,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 final SensorManager sensorManager = (SensorManager) activity.getSystemService(Context.SENSOR_SERVICE);
                 //获取加速度传感器
                 final Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-                //注册加速度传感器回调
+                //注册加速度传感器回调, 通过翻转行为 开启与web编辑页面的连接
                 sensorManager.registerListener(mFlipGesture,
                         accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
             }
@@ -414,7 +414,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
         /**
          * 调用顺序
          * 1. MESSAGE_INITIALIZE_CHANGES
-         * 2. MESSAGE_EVENT_BINDINGS_RECEIVED
+         * 2. MESSAGE_EVENT_BINDINGS_RECEIVED  (初始化时,MixpanelAPI.installDecideCheck()方法中会触发,但是其在另外一个线程中处理..)
          * 2. MESSAGE_PERSIST_VARIANTS_RECEIVED
          *
          * @param msg
@@ -437,6 +437,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                     case MESSAGE_CONNECT_TO_EDITOR:
                         MPLog.v("ViewCrawlerHandler", "MESSAGE_CONNECT_TO_EDITOR,connectToEditor");
                         //连接到web端的Editor界面
+                        // 模拟器会在页面加载之后 直接连接
+                        // 真机会通过 手势监听 去开启连接
                         connectToEditor();
                         break;
                     case MESSAGE_SEND_DEVICE_INFO:
@@ -476,7 +478,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                     case MESSAGE_HANDLE_EDITOR_BINDINGS_RECEIVED:
                         MPLog.v("ViewCrawlerHandler",
                                 "MESSAGE_HANDLE_EDITOR_BINDINGS_RECEIVED,handleEditorBindingsReceived");
-                        //
+                        // Web编辑端下发事件信息, 客户端去绑定事件
                         handleEditorBindingsReceived((JSONObject) msg.obj);
                         break;
                     case MESSAGE_HANDLE_EDITOR_CHANGES_CLEARED:
@@ -532,7 +534,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
             // 解析json,保存到成员变量中去备用(保存到 mPersistentEventBindings)
             // 加载event_binding
             loadEventBindings(storedBindings);
-
+            // 将 event / variant 等信息 进行解析,生成 EventTriggeringVisitor
+            // 并开启循环
             applyVariantsAndEventBindings();
         }
 
@@ -574,7 +577,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                                 getJSONObject(variantIx);
                         // 获取id
                         final int variantIdPart = nextVariant.getInt("id");
-                        // 获取experiment_id
+                        // 获取 experiment_id
                         final int experimentIdPart = nextVariant.getInt("experiment_id");
                         // 保存上面获取到的俩个id
                         final MPPair<Integer, Integer> variantId =
@@ -673,13 +676,14 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 MPLog.v(LOGTAG, "SSL is not available on this device, no connection will be attempted to the events editor.");
                 return;
             }
-
+            // wss://switchboard.mixpanel.com/connect/
             final String url = MPConfig.getInstance(mContext).getEditorUrl() + mToken;
 //            final String url = MPConfig.getInstance(mContext).getEditorUrl();
             try {
                 //创建一个sslSocket
                 final Socket sslSocket = socketFactory.createSocket();
                 //创建连接管理对象
+                // 创建了Editor() , 定义了一些与Web编辑端交互的行为方法
                 mEditorConnection = new EditorConnection(
                         new URI(url),
                         new Editor(),
@@ -805,10 +809,11 @@ public class ViewCrawler implements UpdatesFromMixpanel,
         private void sendSnapshot(JSONObject message) {
             final long startSnapshot = System.currentTimeMillis();
             try {
-                //
+
                 final JSONObject payload = message.getJSONObject("payload");
                 if (payload.has("config")) {
-                    //解析config,并返回ViewSnapShot
+                    // 解析从Web编辑端 返回的config
+                    // 并返回ViewSnapShot
                     mSnapshot = mProtocol.readSnapshotConfig(payload);
                     MPLog.v(LOGTAG, "Initializing snapshot with configuration");
                 }
@@ -822,8 +827,9 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 return;
             }
 
-            //如果ViewSnapShot没有被创建,说明没有从Web处获得Config,直接报错
+            //如果ViewSnapShot没有被创建,说明没有从Web获取的 配置 没有config字段,直接报错
             if (null == mSnapshot) {
+                // 向Web编辑端 发送 error 信息
                 sendError("No snapshot configuration (or a malformed snapshot configuration) was sent.");
                 MPLog.w(LOGTAG, "Mixpanel editor is misconfigured, sent a snapshot request without a valid configuration.");
                 return;
@@ -840,6 +846,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 {
                     writer.write("\"activities\":");
                     writer.flush();
+
+                    //***************
                     mSnapshot.snapshots(mEditState, out);
                 }
 
@@ -1024,22 +1032,30 @@ public class ViewCrawler implements UpdatesFromMixpanel,
 
         /**
          * Accept and apply a temporary event binding from the connected UI.
+         * <p>
+         * 处理当收到 Web端 下发的 event事件
          */
         private void handleEditorBindingsReceived(JSONObject message) {
             final JSONArray eventBindings;
             try {
+                // 获取到 payload 字段信息
                 final JSONObject payload = message.getJSONObject("payload");
+                // 获取 events 字段信息
                 eventBindings = payload.getJSONArray("events");
             } catch (final JSONException e) {
                 MPLog.e(LOGTAG, "Bad event bindings received", e);
                 return;
             }
-
+            // 准备开始解析event 事件
             final int eventCount = eventBindings.length();
 
             mEditorEventBindings.clear();
+
+            // 已经存在的事件非空 && 上一次的事件信息为空
             if (!mPersistentEventBindings.isEmpty() && mOriginalEventBindings.isEmpty()) {
+                // 将已经存在的事件 保存到 original 集合中
                 mOriginalEventBindings.addAll(mPersistentEventBindings);
+                // 遍历已经存在事件集合
                 for (MPPair<String, JSONObject> eventBinding : mPersistentEventBindings) {
                     try {
                         //将事件信息 保存到 mEditorEventBindings 中
@@ -1050,19 +1066,22 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                         e.printStackTrace();
                     }
                 }
-                //清空临时存储
+                //清空本地事件信息的缓存,其值都已经保存在了 mOriginalEventBindings 中
                 mPersistentEventBindings.clear();
             }
             for (int i = 0; i < eventCount; i++) {
                 try {
                     final JSONObject event = eventBindings.getJSONObject(i);
+                    // 判断事件是否与 指定activity 进行绑定
                     final String targetActivity = JSONUtils.optionalStringKey(event, "target_activity");
-                    mEditorEventBindings.put(event.get("path").toString(), new MPPair<String, JSONObject>(targetActivity, event));
+                    // 将Web端下发的 新的事件信息 进行保存
+                    mEditorEventBindings.put(event.get("path").toString(),
+                            new MPPair<String, JSONObject>(targetActivity, event));
                 } catch (final JSONException e) {
                     MPLog.e(LOGTAG, "Bad event binding received from editor in " + eventBindings.toString(), e);
                 }
             }
-
+            // 应用 事件信息....
             applyVariantsAndEventBindings();
         }
 
@@ -1270,7 +1289,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                 //将ActivityName对应的ViewVisitor   放入List中
                 mapElement.add(next.second);
             }
-            //开启循环,将 EventTriggeringVisitor  传入
+            // 开启循环,将 EventTriggeringVisitor  传入
+            // 将找到指定的View, 然后设置Accessibility
             mEditState.setEdits(editMap);
 
             Log.e("ViewCrawlerHandler", "mEditState.setEdits(editMap),key size =  " + editMap.keySet().size());
@@ -1330,9 +1350,14 @@ public class ViewCrawler implements UpdatesFromMixpanel,
         }
 
         /**
-         * 与编辑页面的 管理类
+         * 移动端与编辑页面 之间的连接管理类
          */
         private EditorConnection mEditorConnection;
+        /**
+         * 包含了Web编辑页面 下发的 配置信息(待抓取View的信息)
+         * <p>
+         * 还能用来生成 视图
+         */
         private ViewSnapshot mSnapshot;
         private final String mToken;
         /**
@@ -1346,6 +1371,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
         private final Map<String, MPPair<String, Object>> mEditorTweaks;
         private final List<String> mEditorAssetUrls;
         /**
+         * 来自Web端 的事件信息 会保存在这里
+         * <p>
          * Path -   ActivityName+事件信息
          */
         private final Map<String, MPPair<String, JSONObject>> mEditorEventBindings;
@@ -1365,9 +1392,15 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * A/B测试
          */
         private final Set<VariantTweak> mAppliedTweaks;
+        /**
+         * 记录 variants
+         * 当variants的  actions 和 tweaks 字段都为空时 ...
+         * <p>
+         * id 和 experiment_id
+         */
         private final Set<MPPair<Integer, Integer>> mEmptyExperiments;
         /**
-         * 绑定的Event事件
+         * 本地保存的 Event事件 , 可能来自 decide 或者本地
          * <p>
          * 由event json 解析而来... 路径信息
          *
@@ -1375,12 +1408,18 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * ActivityName  -  事件信息(JsonObject)
          */
         private final Set<MPPair<String, JSONObject>> mPersistentEventBindings;
+        /**
+         * 当处理来自Web端的事件信息时,会将原先已经存在的事件信息保存到这里
+         */
         private final Set<MPPair<String, JSONObject>> mOriginalEventBindings;
+        /**
+         * 保存variants
+         */
         private final Set<MPPair<Integer, Integer>> mSeenExperiments;
     }
 
     /**
-     * 与web进行交互的一些行为,通过MessageThreadHandler将具体的执行的代码切换到子线程
+     * 具体实现了与web进行交互的一些行为,通过MessageThreadHandler将具体的执行的代码切换到子线程
      */
     private class Editor implements EditorConnection.Editor {
         //{"type":"snapshot_request","payload":{"image_hash":"b5f1d4867209bb3516db082fdff48040"}}
@@ -1499,7 +1538,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
      */
     private final DynamicEventTracker mDynamicEventTracker;
     /**
-     * 当前进入Editor页面的一些状态
+     * Activity信息, event_binding, variant 等信息
      */
     private final EditState mEditState;
     /**
@@ -1520,21 +1559,33 @@ public class ViewCrawler implements UpdatesFromMixpanel,
     private static final String SHARED_PREF_EDITS_FILE = "mixpanel.viewcrawler.changes";
     private static final String SHARED_PREF_CHANGES_KEY = "mixpanel.viewcrawler.changes";
     private static final String SHARED_PREF_BINDINGS_KEY = "mixpanel.viewcrawler.bindings";
-
+    // 初始化,加载本地的信息
     private static final int MESSAGE_INITIALIZE_CHANGES = 0;
     //连接到web,事件编辑页面
     private static final int MESSAGE_CONNECT_TO_EDITOR = 1;
+    // 收到Web编辑端信息,发送当前设备状态
     private static final int MESSAGE_SEND_STATE_FOR_EDITING = 2;
+
     private static final int MESSAGE_HANDLE_EDITOR_CHANGES_RECEIVED = 3;
+    // 收到Web编辑端消息,发送设备信息
     private static final int MESSAGE_SEND_DEVICE_INFO = 4;
+    // 从decide接口处获取到的 event 事件信息
     private static final int MESSAGE_EVENT_BINDINGS_RECEIVED = 5;
+    // 收到Web编辑端消息, 客户端去绑定事件
     private static final int MESSAGE_HANDLE_EDITOR_BINDINGS_RECEIVED = 6;
+    // View 的相关操作 触发了 Accessibility , 将这个操作告诉 Web编辑端
     private static final int MESSAGE_SEND_EVENT_TRACKED = 7;
+
     private static final int MESSAGE_HANDLE_EDITOR_CLOSED = 8;
+
     private static final int MESSAGE_VARIANTS_RECEIVED = 9;
+
     private static final int MESSAGE_HANDLE_EDITOR_CHANGES_CLEARED = 10;
+
     private static final int MESSAGE_HANDLE_EDITOR_TWEAKS_RECEIVED = 11;
+
     private static final int MESSAGE_SEND_LAYOUT_ERROR = 12;
+
     private static final int MESSAGE_PERSIST_VARIANTS_RECEIVED = 13;
 
     private static final int EMULATOR_CONNECT_ATTEMPT_INTERVAL_MILLIS = 1000 * 30;

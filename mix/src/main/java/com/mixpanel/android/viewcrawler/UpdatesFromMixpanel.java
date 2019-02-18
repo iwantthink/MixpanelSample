@@ -5,15 +5,27 @@ import com.mixpanel.android.mpmetrics.Tweaks;
 
 import org.json.JSONArray;
 
-/* This interface is for internal use in the Mixpanel library, and should not be
-   implemented in client code. */
+
+/**
+ * This interface is for internal use in the Mixpanel library, and should not be
+ * implemented in client code.
+ * <p>
+ * 定义了 一些规范行为,MixpanelApi对象的行为
+ */
 public interface UpdatesFromMixpanel {
     public void startUpdates();
+
     public void applyPersistedUpdates();
+
     public void setEventBindings(JSONArray bindings);
+
     public void storeVariants(JSONArray variants);
+
     public void setVariants(JSONArray variants);
+
     public Tweaks getTweaks();
+
     public void addOnMixpanelTweaksUpdatedListener(OnMixpanelTweaksUpdatedListener listener);
+
     public void removeOnMixpanelTweaksUpdatedListener(OnMixpanelTweaksUpdatedListener listener);
 }

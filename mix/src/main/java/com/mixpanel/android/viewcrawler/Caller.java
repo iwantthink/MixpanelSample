@@ -47,6 +47,7 @@ import java.lang.reflect.Method;
 
     /**
      * 通过反射执行指定方法
+     *
      * @param target
      * @return
      */
@@ -56,6 +57,8 @@ import java.lang.reflect.Method;
 
     public Object applyMethodWithArguments(View target, Object[] arguments) {
         final Class<?> klass = target.getClass();
+        // 判断 目标类 是否和传入的target类相同, 或者 目标类 是 target类的接口或超类
+        // 如果匹配成功,那么说明 target 拥有该属性,可以通过反射去获得.
         if (mTargetClass.isAssignableFrom(klass)) {
             try {
                 return mTargetMethod.invoke(target, arguments);

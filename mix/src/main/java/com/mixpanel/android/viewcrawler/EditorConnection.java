@@ -32,6 +32,9 @@ import java.nio.ByteBuffer;
         }
     }
 
+    /**
+     * 该接口声明了 各种与web端编辑页面交互的 行为
+     */
     public interface Editor {
         void sendSnapshot(JSONObject message);
 
@@ -53,7 +56,7 @@ import java.nio.ByteBuffer;
         mService = service;
         mURI = uri;
         try {
-            //创建客户端
+            //创建Websocket 客户端
             mClient = new EditorClient(uri, CONNECT_TIMEOUT, sslSocket);
             //建立连接,会阻塞到建立成功或失败为止
             mClient.connectBlocking();
@@ -179,10 +182,18 @@ import java.nio.ByteBuffer;
         }
     }
 
+    /**
+     * 定义了一些与Web编辑端交互的行为方法
+     */
     private final Editor mService;
     private final EditorClient mClient;
+    /**
+     * Web编辑端的地址
+     */
     private final URI mURI;
-
+    /**
+     * 连接超时时间
+     */
     private static final int CONNECT_TIMEOUT = 5000;
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0);
 

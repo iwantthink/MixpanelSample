@@ -230,10 +230,11 @@ import java.util.Set;
             }
 
             // ELSE View is alive and we are alive
-            //重要部分!
-            //调用EventTriggeringVisitor 中的visit方法(未被子类重写,实现在ViewVisitor)
-            //具体实现交给了PathFinder 的findTargetsInRoot方法
-            // mEdit 是 EventTriggeringVisitor 类型的
+            // 重要部分!
+            // 调用EventTriggeringVisitor 中的visit方法(未被子类重写,实现在ViewVisitor)
+            // 具体实现交给了PathFinder 的findTargetsInRoot方法
+            //  mEdit 是 EventTriggeringVisitor 类型的
+            // 具体逻辑: 找到指定view , 给指定view 设置 Accessibility
             mEdit.visit(viewRoot);
             //移除当前消息队列中的Runnable
             mHandler.removeCallbacks(this);

@@ -65,8 +65,8 @@ import java.util.WeakHashMap;
      * Attempts to apply mutator to every matching view. Use this to update properties
      * in the view hierarchy. If accessor is non-null, it will be used to attempt to
      * prevent calls to the mutator if the property already has the intended value.
-     *
-     *
+     * <p>
+     * <p>
      * 这个是AB测试的
      */
     public static class PropertySetVisitor extends ViewVisitor {
@@ -562,12 +562,18 @@ import java.util.WeakHashMap;
                 }
             }
 
+            /**
+             * 在View.performClick()中被触发
+             * @param host
+             * @param eventType
+             */
             @Override
             public void sendAccessibilityEvent(View host, int eventType) {
+                // AccessibilityEvent = 1
                 if (eventType == mEventType) {
                     fireEvent(host);
                 }
-
+                // 如果 还拥有子类 accessibility .. 继续向下发送
                 if (null != mRealDelegate) {
                     mRealDelegate.sendAccessibilityEvent(host, eventType);
                 }
@@ -753,20 +759,25 @@ import java.util.WeakHashMap;
     }
 
     /**
-     * 通过PathFinder 去寻找rootView下面的符合匹配规则的view,借助 EventTriggeringVisitor 并添加AccessibilityDelegate
+     * 通过PathFinder 去寻找rootView下面的符合匹配规则的view,
+     * 在找到了指定view之后,借助 EventTriggeringVisitor 并添加AccessibilityDelegate
      * <p>
      * EventTriggeringVisitor 类型
      * * 1. AddAccessibilityEventVisitor
      * * 2. AddTextChangeListener
      * * 3. ViewDetectorVisitor
      * <p>
+     * <p>
+     * LayoutUpdateVisitor 重写了visit... 这个类是用来AB测试
+     * <p>
+     * <p>
      * Scans the View hierarchy below rootView,
      * applying it's operation to each matching child view.
      */
     public void visit(View rootView) {
-        //Accumulator 接口  accumulate 方法,具体的实现类会去实现这个方法
-        // ViewVisitor 实现了这个接口,但没有重写,交给了子类
-        //
+        //  visit 是 ViewVisitor 的方法...
+        // ViewVisitor 也实现了 Accumulator接口... 但是没有重写
+        // 具体的实现交给了 子类
         mPathfinder.findTargetsInRoot(rootView, mPath, this);
     }
 

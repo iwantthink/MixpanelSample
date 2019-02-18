@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 @TargetApi(MPConfig.UI_FEATURES_MIN_API)
-/* package */ class ViewSnapshot {
+        /* package */ class ViewSnapshot {
 
     public ViewSnapshot(Context context, List<PropertyDescription> properties, ResourceIds resourceIds) {
         mConfig = MPConfig.getInstance(context);
@@ -58,17 +58,21 @@ import java.util.concurrent.TimeoutException;
     }
 
     /**
-     * Take a snapshot of each activity in liveActivities. The given UIThreadSet will be accessed
+     * Take a snapshot of each activity in liveActivities.
+     * The given UIThreadSet will be accessed
      * on the main UI thread, and should contain a set with elements for every activity to be
-     * snapshotted. Given stream out will be written on the calling thread.
+     * snapshotted.
+     * Given stream out will be written on the calling thread.
      */
     public void snapshots(UIThreadSet<Activity> liveActivities,
                           OutputStream out) throws IOException {
         //传入当前 正在运行的Activity列表
         mRootViewFinder.findInActivities(liveActivities);
+
         // 对传入的Activity列表的 decorView 进行遍历,为每一个Decorview创建截图
         final FutureTask<List<RootViewInfo>> infoFuture =
                 new FutureTask<List<RootViewInfo>>(mRootViewFinder);
+
         //在主线程中执行
         mMainThreadHandler.post(infoFuture);
         //输出到Web端
@@ -77,6 +81,8 @@ import java.util.concurrent.TimeoutException;
         writer.write("[");
 
         try {
+
+            // get方法可能导致阻塞
             //获取之前执行的结果,超过1s 直接超时
             //获取每个Activity的截图 列表
             infoList = infoFuture.get(1, TimeUnit.SECONDS);
@@ -108,6 +114,8 @@ import java.util.concurrent.TimeoutException;
                 j.beginObject();
                 j.name("rootObject").value(info.rootView.hashCode());
                 j.name("objects");
+                // 获取当前类 和子类的 各种信息
+                // 会遍历当前类的子类
                 snapshotViewHierarchy(j, info.rootView);
                 j.endObject();
                 j.flush();
@@ -149,11 +157,12 @@ import java.util.concurrent.TimeoutException;
         //如果不可见,根据配置文件进行操作
         if (view.getVisibility() == View.INVISIBLE &&
                 mConfig.getIgnoreInvisibleViewsEditor()) {
+            // 配置文件 决定忽略不可见的控件,那么直接结束
             return;
         }
-        //获取id
+        //获取控件id
         final int viewId = view.getId();
-        // id对应的id-name
+        //获取id对应的id-name
         final String viewIdName;
         if (-1 == viewId) {
             viewIdName = null;
@@ -206,15 +215,15 @@ import java.util.concurrent.TimeoutException;
         j.beginArray();
         //获取类的字节码
         Class<?> klass = view.getClass();
-        //将其父类关系都添加
+        //将当前类 和 其父类关系都添加
         do {
             // 获取CanonicalName ,并进行缓存
             j.value(mClassnameCache.get(klass));
-            //获取其父类
+            //获取其父类字节码
             klass = klass.getSuperclass();
         } while (klass != Object.class && klass != null);
         j.endArray();
-        // 采集配置文件中的属性
+        // 采集由Web编辑端 下发的 配置文件中的属性,通过这些属性配置,去获取指定信息
         // 添加到Json中
         addProperties(j, view);
 
@@ -263,6 +272,16 @@ import java.util.concurrent.TimeoutException;
         }
     }
 
+
+    /**
+     * 通过解析 snapshot_request  下发的 配置信息
+     * <p>
+     * 去获取对应的控件的指定属性
+     *
+     * @param j
+     * @param v
+     * @throws IOException
+     */
     private void addProperties(JsonWriter j, View v)
             throws IOException {
         //获取控件字节码
@@ -270,6 +289,8 @@ import java.util.concurrent.TimeoutException;
         //遍历 配置文件下发的 需要采集的属性
         for (final PropertyDescription desc : mProperties) {
             // 先匹配到指定的View,同时 判断是否有需要get的属性
+            // isAssignableFrom 表示 俩者是否相同 或 前者是后者的超类或接口
+            // 只有符合条件,才表示viewClass 拥有该属性,才能够去获取该属性
             if (desc.targetClass.isAssignableFrom(viewClass) && null != desc.accessor) {
                 //get到指定属性
                 final Object value = desc.accessor.applyMethod(v);
@@ -343,11 +364,11 @@ import java.util.concurrent.TimeoutException;
             final Set<Activity> liveActivities = mLiveActivities.getAll();
             //遍历当前存活的activity
             for (final Activity a : liveActivities) {
-                // 获取Activity的名称
+                // 获取Activity类的名称
                 final String activityName = a.getClass().getCanonicalName();
-                // 获取RootView
+                // 获取RootView,理论上来说就是DecorView
                 final View rootView = a.getWindow().getDecorView().getRootView();
-                // 获取屏幕的一些信息
+                // 获取屏幕的一些信息,保存到 mDisplayMetrics
                 a.getWindowManager().getDefaultDisplay().getMetrics(mDisplayMetrics);
                 final RootViewInfo info = new RootViewInfo(activityName, rootView);
                 mRootViews.add(info);
@@ -356,13 +377,19 @@ import java.util.concurrent.TimeoutException;
             final int viewCount = mRootViews.size();
             for (int i = 0; i < viewCount; i++) {
                 final RootViewInfo info = mRootViews.get(i);
-                //创建截图,保存在info中
+                //创建截图,保存信息在info对象中
                 takeScreenshot(info);
             }
 
             return mRootViews;
         }
 
+
+        /**
+         * 对RootView进行截图
+         *
+         * @param info
+         */
         private void takeScreenshot(final RootViewInfo info) {
             final View rootView = info.rootView;
             Bitmap rawBitmap = null;
@@ -438,6 +465,12 @@ import java.util.concurrent.TimeoutException;
          * 当前存活的Activity 列表
          */
         private UIThreadSet<Activity> mLiveActivities;
+        /**
+         * 保存了 Activity 和 DecorView的关系
+         * RootViewInfo 是对俩者关系的封装类
+         * <p>
+         * 以及相关的截图信息
+         */
         private final List<RootViewInfo> mRootViews;
         private final DisplayMetrics mDisplayMetrics;
         private final CachedBitmap mCachedBitmap;
@@ -516,16 +549,39 @@ import java.util.concurrent.TimeoutException;
         }
 
         public final String activityName;
+        /**
+         * 理论来说是 DecorView
+         */
         public final View rootView;
         public CachedBitmap screenshot;
         public float scale;
     }
 
+    /**
+     * 本地配置信息
+     */
     private final MPConfig mConfig;
+    /**
+     * 实现了 Callable 接口
+     */
     private final RootViewFinder mRootViewFinder;
+    /**
+     * 待抓取的控件的相关属性
+     */
     private final List<PropertyDescription> mProperties;
+    /**
+     * LruCache,
+     * <p>
+     * 类字节码 - 类名称
+     */
     private final ClassNameCache mClassnameCache;
+    /**
+     * 运行在主线程的 Handler
+     */
     private final Handler mMainThreadHandler;
+    /**
+     * 资源管理类,通过该类获取 id 或 id名称
+     */
     private final ResourceIds mResourceIds;
 
     private static final int MAX_CLASS_NAME_CACHE_SIZE = 255;

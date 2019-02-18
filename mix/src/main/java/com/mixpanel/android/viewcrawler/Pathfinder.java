@@ -100,6 +100,7 @@ import java.util.List;
         public final String viewClassName;
         /**
          * Path 中的 index 字段...
+         * 这个字段好像也被用来确定当前view是否抓取
          */
         public final int index;
         /**
@@ -114,6 +115,8 @@ import java.util.List;
     }
 
     public interface Accumulator {
+        // Accumulator 接口存在  accumulate 方法,具体的实现类会去实现这个方法
+        // ViewVisitor 实现了这个接口,但没有重写,交给了子类
         public void accumulate(View v);
     }
 
@@ -125,6 +128,8 @@ import java.util.List;
      * 在根View中找到匹配的控件
      * <p>
      * Accumulator接口 被  ViewVisitor 实现了,具体实现交给了具体的子类
+     *
+     * 当找到指定的控件之后,会调用其 accumulate 方法, 去设置 Accessibility
      * <p>
      * EventTriggeringVisitor(父类是 ViewVisitor) 类型
      * 1. AddAccessibilityEventVisitor
@@ -178,6 +183,7 @@ import java.util.List;
      * 那么这个方法就是在 这个view中继续匹配接下来的Path
      * 这个方法会被递归调用..直到找到子类中匹配的..
      *
+     * 当找到指定的控件之后,会调用其 accumulate 方法, 去设置 Accessibility
      *
      * EventTriggeringVisitor(父类是 ViewVisitor) 类型
      *      1. AddAccessibilityEventVisitor   ->>>TrackingAccessibilityDelegate
@@ -237,8 +243,8 @@ import java.util.List;
             final View child = findPrefixedMatch(matchElement, givenChild, indexKey);
             // 匹配又成功了...
             if (null != child) {
-                //这一步是进行下一层path的匹配,等待Path为空,直接设置Delegate
-                // 在这个方法里 就会可以选择跳出
+                // 这一步是进行下一层path的匹配,等待Path为空,直接设置Delegate
+                // 递归自己
                 findTargetsInMatchedView(child, nextPath, accumulator);
             }
             //如果child为空,则意味着第一个child不符合条件
