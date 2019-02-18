@@ -107,16 +107,22 @@ import java.nio.ByteBuffer;
                 final JSONObject messageJson = new JSONObject(message);
                 final String type = messageJson.getString("type");
                 if (type.equals("device_info_request")) {
+                    // 发送设备信息
                     mService.sendDeviceInfo();
                 } else if (type.equals("snapshot_request")) {
+                    // 发送截图 以及 视图信息(坐标等)
                     mService.sendSnapshot(messageJson);
                 } else if (type.equals("change_request")) {
+                    // AB测试相关
                     mService.performEdit(messageJson);
                 } else if (type.equals("event_binding_request")) {
+                    // 事件下发,需要在本地 添加这些事件
                     mService.bindEvents(messageJson);
                 } else if (type.equals("clear_request")) {
+                    // AB测试相关
                     mService.clearEdits(messageJson);
                 } else if (type.equals("tweak_request")) {
+                    // AB测试相关
                     mService.setTweaks(messageJson);
                 }
             } catch (final JSONException e) {

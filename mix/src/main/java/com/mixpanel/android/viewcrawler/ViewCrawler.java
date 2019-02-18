@@ -955,7 +955,8 @@ public class ViewCrawler implements UpdatesFromMixpanel,
                     final JSONObject change = actions.getJSONObject(i);
                     final String targetActivity = JSONUtils.optionalStringKey(change, "target_activity");
                     final String name = change.getString("name");
-                    mEditorChanges.put(name, new MPPair<String, JSONObject>(targetActivity, change));
+                    mEditorChanges.put(name,
+                            new MPPair<String, JSONObject>(targetActivity, change));
                 }
 
                 applyVariantsAndEventBindings();
