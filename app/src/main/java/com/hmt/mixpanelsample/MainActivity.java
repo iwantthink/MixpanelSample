@@ -1,6 +1,7 @@
 package com.hmt.mixpanelsample;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.os.Bundle;
@@ -47,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
+
 
         mBtnToast = findViewById(R.id.btn_toast);
         mBtnToast.setOnClickListener(new View.OnClickListener() {
@@ -97,6 +99,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 SeconedActivity.start(MainActivity.this);
+            }
+        });
+
+        findViewById(R.id.btn_go2seconed).setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                startActivity(new Intent(MainActivity.this, ThridActivity.class));
+                return true;
             }
         });
 

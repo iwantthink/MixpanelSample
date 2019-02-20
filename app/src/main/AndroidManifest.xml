@@ -63,6 +63,12 @@
             android:enabled="true"
             android:exported="true">
         </service>
+
+        <activity
+            android:name=".ThridActivity"
+            android:label="@string/title_activity_thrid"
+            android:theme="@style/AppTheme.NoActionBar">
+        </activity>
     </application>
 
 </manifest>
