@@ -84,7 +84,7 @@ import java.nio.ByteBuffer;
 
     private class EditorClient extends WebSocketClient {
         /**
-         * @param uri            服务器地址
+         * @param uri            服务器请求地址
          * @param connectTimeout 请求超时时间
          * @param sslSocket
          * @throws InterruptedException

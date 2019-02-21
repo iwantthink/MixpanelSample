@@ -1382,7 +1382,7 @@ public class ViewCrawler implements UpdatesFromMixpanel,
          * <p>
          * 在loadVariants 中被赋值
          * <p>
-         * 可视化的改变 , AB测试
+         * 可视化的改变 , 用于AB测试
          */
         private final Set<VariantChange> mAppliedVisualChanges;
         /**
