@@ -1716,6 +1716,9 @@ public class MixpanelAPI {
 
     ///////////////////////
 
+    /**
+     * 主要方法是 indentify ...
+     */
     private class PeopleImpl implements People {
         @Override
         public void identify(String distinctId) {
@@ -2603,6 +2606,9 @@ public class MixpanelAPI {
      * 项目密钥
      */
     private final String mToken;
+    /**
+     *
+     */
     private final PeopleImpl mPeople;
     /**
      * 正常情况下就是ViewCrawler
